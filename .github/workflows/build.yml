@@ -18,7 +18,9 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run build
         env:
-          CBAITYHY_AI_SUPABASE_URL: https://example.supabase.co
+          CBAITYHY_OPERATIONAL_SUPABASE_URL: https://example-operational.supabase.co
+          CBAITYHY_OPERATIONAL_SUPABASE_SECRET_KEY: placeholder
+          CBAITYHY_AI_SUPABASE_URL: https://example-ai.supabase.co
           CBAITYHY_AI_SUPABASE_SECRET_KEY: placeholder
           CBAITYHY_ORGANIZATION_ID: 00000000-0000-0000-0000-000000000000
           OPENAI_API_KEY: placeholder
