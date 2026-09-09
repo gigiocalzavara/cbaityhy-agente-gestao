@@ -18,20 +18,16 @@ type KnowledgeSource = {
 function env() {
   const url = process.env.CBAITYHY_AI_SUPABASE_URL?.replace(/\/$/, "");
   const secret = process.env.CBAITYHY_AI_SUPABASE_SECRET_KEY;
-  const organizationId = process.env.CBAITYHY_ORGANIZATION_ID;
-
-  if (!url || !secret || !organizationId) {
-    throw new Error("RAG compartilhado da CBAItyhy não configurado.");
-  }
-
-  return { url, secret, organizationId };
+  const defaultOrganizationId = process.env.CBAITYHY_ORGANIZATION_ID || null;
+  if (!url || !secret) throw new Error("RAG compartilhado da CBAItyhy não configurado.");
+  return { url, secret, defaultOrganizationId };
 }
 
 function headers() {
   const { secret } = env();
   return {
     apikey: secret,
-    ...(secret.startsWith("eyJ") ? { Authorization: `Bearer ${secret}` } : {}),
+    Authorization: `Bearer ${secret}`,
     "Content-Type": "application/json",
   };
 }
@@ -43,11 +39,7 @@ async function aiRequest<T>(path: string, init: RequestInit = {}) {
     cache: "no-store",
     headers: { ...headers(), ...(init.headers || {}) },
   });
-
-  if (!response.ok) {
-    throw new Error(`Supabase IA ${response.status}: ${await response.text()}`);
-  }
-
+  if (!response.ok) throw new Error(`Supabase IA ${response.status}: ${await response.text()}`);
   const text = await response.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }
@@ -55,30 +47,28 @@ async function aiRequest<T>(path: string, init: RequestInit = {}) {
 async function embedQuestion(question: string) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("OPENAI_API_KEY não configurada.");
-
   const response = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
       input: [question],
       dimensions: 1536,
     }),
   });
-
-  if (!response.ok) {
-    throw new Error(`OpenAI embeddings ${response.status}: ${await response.text()}`);
-  }
-
+  if (!response.ok) throw new Error(`OpenAI embeddings ${response.status}: ${await response.text()}`);
   const data = await response.json();
   return data.data?.[0]?.embedding as number[];
 }
 
-export async function retrieveKnowledge(question: string, municipalityId?: string | null) {
-  const { organizationId } = env();
+export async function retrieveKnowledge(
+  question: string,
+  municipalityId?: string | null,
+  authenticatedOrganizationId?: string | null,
+) {
+  const { defaultOrganizationId } = env();
+  const organizationId = authenticatedOrganizationId || defaultOrganizationId;
+  if (!organizationId) throw new Error("Organização CBAItyhy não definida para o RAG.");
   const embedding = await embedQuestion(question);
 
   let matches = await aiRequest<RagMatch[]>("rpc/match_knowledge_chunks", {
@@ -105,21 +95,15 @@ export async function retrieveKnowledge(question: string, municipalityId?: strin
     });
   }
 
-  if (!matches.length) {
-    return { evidence: "", sources: [] as KnowledgeSource[] };
-  }
+  if (!matches.length) return { evidence: "", sources: [] as KnowledgeSource[] };
 
   const sourceIds = [...new Set(matches.map((item) => item.source_id))];
   const sources = await aiRequest<KnowledgeSource[]>(
     `knowledge_sources?select=id,title,canonical_url,storage_path,visibility&id=in.(${sourceIds.join(",")})&organization_id=eq.${organizationId}`,
   );
   const sourceMap = new Map(sources.map((source) => [source.id, source]));
-
   const evidence = matches
-    .map((match, index) => {
-      const source = sourceMap.get(match.source_id);
-      return `[Fonte ${index + 1}] ${source?.title || "Conteúdo"}\n${match.content}`;
-    })
+    .map((match, index) => `[Fonte ${index + 1}] ${sourceMap.get(match.source_id)?.title || "Conteúdo"}\n${match.content}`)
     .join("\n\n");
 
   return { evidence, sources };
