@@ -26,37 +26,19 @@ const tools = new Map((catalog.tools as ToolMeta[]).map((tool) => [tool.id, tool
 function sanitizeArguments(meta: ToolMeta, raw: Record<string, unknown>) {
   const values: unknown[] = [];
   const clean: Record<string, string | null> = {};
-
   for (const parameter of meta.parameters) {
     const value = raw[parameter];
-    if (value === null || value === undefined || value === "") {
-      clean[parameter] = null;
-      values.push(null);
-      continue;
-    }
-
+    if (value === null || value === undefined || value === "") { clean[parameter] = null; values.push(null); continue; }
     if (parameter === "ine") {
       const normalized = String(value).replace(/\D/g, "").slice(0, 10);
-      clean[parameter] = normalized || null;
-      values.push(normalized || null);
-      continue;
+      clean[parameter] = normalized || null; values.push(normalized || null); continue;
     }
-
     if (parameter === "logradouro") {
-      const normalized = String(value)
-        .normalize("NFKC")
-        .replace(/[;%'"\\_]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 80);
-      clean[parameter] = normalized || null;
-      values.push(normalized || null);
-      continue;
+      const normalized = String(value).normalize("NFKC").replace(/[;%'"\\_]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+      clean[parameter] = normalized || null; values.push(normalized || null); continue;
     }
-
     throw new Error(`Parâmetro não suportado: ${parameter}`);
   }
-
   return { clean, values };
 }
 
@@ -78,20 +60,12 @@ function maskSensitiveRow(row: Record<string, unknown>) {
 
 export function getToolDefinitions() {
   return (catalog.tools as ToolMeta[]).map((tool) => ({
-    type: "function",
-    name: tool.id,
-    description: describeTool(tool.id),
-    strict: true,
+    type: "function", name: tool.id, description: describeTool(tool.id), strict: true,
     parameters: {
       type: "object",
-      properties: Object.fromEntries(
-        tool.parameters.map((parameter) => [
-          parameter,
-          parameter === "ine"
-            ? { type: ["string", "null"], description: "INE da equipe, apenas quando explicitamente informado ou já selecionado no contexto." }
-            : { type: ["string", "null"], description: "Nome do logradouro informado pelo usuário." },
-        ]),
-      ),
+      properties: Object.fromEntries(tool.parameters.map((parameter) => [parameter, parameter === "ine"
+        ? { type: ["string", "null"], description: "INE da equipe, apenas quando explicitamente informado ou já selecionado no contexto." }
+        : { type: ["string", "null"], description: "Nome do logradouro informado pelo usuário." }])),
       required: tool.parameters,
       additionalProperties: false,
     },
@@ -114,32 +88,14 @@ function describeTool(id: string) {
   return descriptions[id] || id;
 }
 
-export async function executeTool(
-  toolId: string,
-  rawArguments: Record<string, unknown>,
-  context: ToolExecutionContext,
-) {
+export async function executeTool(toolId: string, rawArguments: Record<string, unknown>, context: ToolExecutionContext) {
   const meta = tools.get(toolId);
   if (!meta) throw new Error("Tool não homologada.");
-
-  if (meta.nominal && (!context.nominalAccess || !["admin", "manager", "municipal_manager", "coordinator"].includes(context.role))) {
-    throw new Error("FORBIDDEN_NOMINAL");
-  }
-
+  if (meta.nominal && (!context.nominalAccess || !["admin", "manager", "municipal_manager", "coordinator"].includes(context.role))) throw new Error("FORBIDDEN_NOMINAL");
   const { clean, values } = sanitizeArguments(meta, rawArguments);
-  const sqlPath = path.join(process.cwd(), meta.sql);
-  const sql = await readFile(sqlPath, "utf8");
-  const rows = await executeReadOnlyQuery(sql, values);
+  const sql = await readFile(path.join(process.cwd(), meta.sql), "utf8");
+  const rows = await executeReadOnlyQuery(context.municipalityId, sql, values);
   const max = meta.nominal ? Number(process.env.DEFAULT_RESULT_LIMIT || 15) : 250;
   const limited = rows.slice(0, Math.max(1, Math.min(max, 500))).map(maskSensitiveRow);
-
-  return {
-    toolId,
-    kind: meta.kind,
-    nominal: meta.nominal,
-    chart: meta.chart,
-    parameters: clean,
-    rowCount: limited.length,
-    rows: limited,
-  };
+  return { toolId, kind: meta.kind, nominal: meta.nominal, chart: meta.chart, parameters: clean, rowCount: limited.length, rows: limited };
 }
