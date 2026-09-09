@@ -13,9 +13,9 @@ export type ManagementIdentity = {
 };
 
 function env() {
-  const url = process.env.CBAITYHY_AI_SUPABASE_URL?.replace(/\/$/, "");
-  const secret = process.env.CBAITYHY_AI_SUPABASE_SECRET_KEY;
-  if (!url || !secret) throw new Error("Supabase CBAItyhy não configurado.");
+  const url = process.env.CBAITYHY_OPERATIONAL_SUPABASE_URL?.replace(/\/$/, "");
+  const secret = process.env.CBAITYHY_OPERATIONAL_SUPABASE_SECRET_KEY;
+  if (!url || !secret) throw new Error("Supabase operacional não configurado.");
   return { url, secret };
 }
 
@@ -42,7 +42,7 @@ export async function requireManagementIdentity(): Promise<ManagementIdentity> {
   const user = await userResponse.json();
 
   const profileResponse = await fetch(
-    `${url}/rest/v1/management_profiles?select=auth_user_id,organization_id,municipality_id,municipality_name,role,nominal_access,active&auth_user_id=eq.${encodeURIComponent(user.id)}&active=eq.true&limit=1`,
+    `${url}/rest/v1/aps_agent_profiles?select=auth_user_id,organization_id,municipality_id,municipality_name,role,nominal_access,active&auth_user_id=eq.${encodeURIComponent(user.id)}&active=eq.true&limit=1`,
     { headers: serviceHeaders(), cache: "no-store" },
   );
   if (!profileResponse.ok) throw new Error(`Falha ao carregar perfil: ${profileResponse.status}`);
