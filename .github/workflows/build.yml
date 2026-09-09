@@ -1,0 +1,30 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+        env:
+          CBAITYHY_AI_SUPABASE_URL: https://example.supabase.co
+          CBAITYHY_AI_SUPABASE_SECRET_KEY: placeholder
+          CBAITYHY_ORGANIZATION_ID: 00000000-0000-0000-0000-000000000000
+          OPENAI_API_KEY: placeholder
+          PEC_PG_HOST: localhost
+          PEC_PG_DATABASE: placeholder
+          PEC_PG_USER: placeholder
+          PEC_PG_PASSWORD: placeholder
