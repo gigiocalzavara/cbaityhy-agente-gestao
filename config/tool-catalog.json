@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "tools": [
+    {"id":"tool_indicador_citopatologico","sql":"sql/tools/tool_indicador_citopatologico.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[]},
+    {"id":"tool_busca_ativa_gestantes_atraso","sql":"sql/tools/tool_busca_ativa_gestantes_atraso.sql","kind":"nominal","nominal":true,"chart":false,"parameters":[]},
+    {"id":"tool_indicador_hipertensao","sql":"sql/tools/tool_indicador_hipertensao.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[]},
+    {"id":"tool_indicador_diabetes","sql":"sql/tools/tool_indicador_diabetes.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[]},
+    {"id":"tool_indicador_idoso","sql":"sql/tools/tool_indicador_idoso.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":["ine"]},
+    {"id":"tool_busca_ativa_idosos","sql":"sql/tools/tool_busca_ativa_idosos.sql","kind":"nominal","nominal":true,"chart":false,"parameters":["ine"]},
+    {"id":"tool_indicador_vacinacao_infantil","sql":"sql/tools/tool_indicador_vacinacao_infantil.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[]},
+    {"id":"tool_censo_gestantes","sql":"sql/tools/tool_censo_gestantes.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":["ine"]},
+    {"id":"tool_busca_territorial_rua","sql":"sql/tools/tool_busca_territorial_rua.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":["logradouro","ine"]},
+    {"id":"tool_auditoria_cadastros","sql":"sql/tools/tool_auditoria_cadastros.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[]}
+  ]
+}
