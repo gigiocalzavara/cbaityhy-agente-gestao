@@ -1,6 +1,6 @@
 WITH parametros AS (
-    SELECT 'SAO JOSE'::varchar AS termo_busca_logradouro,
-           NULL::varchar AS ine_filtro
+    SELECT $1::varchar AS termo_busca_logradouro,
+           $2::varchar AS ine_filtro
 )
 SELECT c.ds_logradouro AS nome_logradouro,
        coalesce(c.no_bairro, 'Bairro não informado') AS bairro,
