@@ -1,5 +1,5 @@
 import "server-only";
-import { Pool } from "pg";
+import { Pool, type QueryResultRow } from "pg";
 
 let pool: Pool | null = null;
 
@@ -30,7 +30,7 @@ function getPool() {
   return pool;
 }
 
-export async function executeReadOnlyQuery<T extends Record<string, unknown> = Record<string, unknown>>(
+export async function executeReadOnlyQuery<T extends QueryResultRow = Record<string, unknown>>(
   sql: string,
   values: unknown[] = [],
 ) {
@@ -44,9 +44,7 @@ export async function executeReadOnlyQuery<T extends Record<string, unknown> = R
     await client.query("COMMIT");
     return result.rows;
   } catch (error) {
-    try {
-      await client.query("ROLLBACK");
-    } catch {}
+    try { await client.query("ROLLBACK"); } catch {}
     throw error;
   } finally {
     client.release();
