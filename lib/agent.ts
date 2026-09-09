@@ -60,6 +60,7 @@ function presentationFrom(result?: ToolResult | null) {
 export async function runManagementAgent({ message, history = [], context }: AgentInput) {
   const { evidence, sources } = await retrieveKnowledge(message, context.municipalityId, context.organizationId);
   const recentHistory = history.slice(-10).map((item) => ({ role: item.role, content: item.content.slice(0, 4000) }));
+  const tools = getToolDefinitions();
 
   const instructions = [
     "Você é o agente de inteligência em gestão da APS da CBAItyhy.",
@@ -83,7 +84,7 @@ export async function runManagementAgent({ message, history = [], context }: Age
         content: `${message}\n\nCONTEXTO NORMATIVO RECUPERADO:\n${evidence || "Nenhuma evidência suficientemente relacionada foi encontrada."}`,
       },
     ],
-    tools: getToolDefinitions(),
+    tools,
     parallel_tool_calls: false,
     max_output_tokens: 1600,
   });
@@ -99,19 +100,11 @@ export async function runManagementAgent({ message, history = [], context }: Age
     const outputs = [];
     for (const call of calls) {
       let args: Record<string, unknown> = {};
-      try {
-        args = call.arguments ? JSON.parse(call.arguments) : {};
-      } catch {
-        args = {};
-      }
+      try { args = call.arguments ? JSON.parse(call.arguments) : {}; } catch { args = {}; }
 
       try {
         lastToolResult = await executeTool(call.name, args, context);
-        outputs.push({
-          type: "function_call_output",
-          call_id: call.call_id,
-          output: JSON.stringify(lastToolResult),
-        });
+        outputs.push({ type: "function_call_output", call_id: call.call_id, output: JSON.stringify(lastToolResult) });
       } catch (error) {
         const code = error instanceof Error ? error.message : "TOOL_ERROR";
         outputs.push({
@@ -126,6 +119,8 @@ export async function runManagementAgent({ message, history = [], context }: Age
       model: process.env.OPENAI_MODEL || "gpt-5.6-luna",
       previous_response_id: current.id,
       input: outputs,
+      tools,
+      parallel_tool_calls: false,
       max_output_tokens: 1600,
     });
     iterations += 1;
