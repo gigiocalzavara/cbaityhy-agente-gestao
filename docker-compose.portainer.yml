@@ -18,12 +18,9 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-luna}
       OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
 
-      PEC_PG_HOST: ${PEC_PG_HOST}
-      PEC_PG_PORT: ${PEC_PG_PORT:-5432}
-      PEC_PG_DATABASE: ${PEC_PG_DATABASE}
-      PEC_PG_USER: ${PEC_PG_USER}
-      PEC_PG_PASSWORD: ${PEC_PG_PASSWORD}
-      PEC_PG_SSL: ${PEC_PG_SSL:-true}
+      # PEC é configurado por município no painel Administração > Municípios / PEC.
+      # Esta chave cifra as senhas PostgreSQL antes de persistir no Supabase Operacional.
+      APS_AGENT_DB_CREDENTIALS_KEY: ${APS_AGENT_DB_CREDENTIALS_KEY}
       PEC_PG_POOL_MAX: ${PEC_PG_POOL_MAX:-5}
       PEC_PG_STATEMENT_TIMEOUT_MS: ${PEC_PG_STATEMENT_TIMEOUT_MS:-8000}
 
