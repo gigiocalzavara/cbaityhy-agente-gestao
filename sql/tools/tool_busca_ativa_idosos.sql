@@ -1,5 +1,5 @@
 WITH parametros AS (
-    SELECT NULL::varchar AS ine_filtro
+    SELECT $1::varchar AS ine_filtro
 ),
 idosos_cadastrados AS (
     SELECT 
