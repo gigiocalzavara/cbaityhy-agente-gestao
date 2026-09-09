@@ -1,5 +1,5 @@
 WITH parametros AS (
-    SELECT NULL::varchar AS ine_filtro
+    SELECT $1::varchar AS ine_filtro
 ),
 gestacoes_recentes AS (
     SELECT coalesce(fat.nu_cpf_cidadao, fat.nu_cns) AS id_gestante,
