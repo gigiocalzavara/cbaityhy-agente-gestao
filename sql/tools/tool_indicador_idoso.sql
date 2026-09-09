@@ -1,5 +1,5 @@
 WITH parametros AS (
-    SELECT NULL::varchar AS ine_filtro
+    SELECT $1::varchar AS ine_filtro
 ),
 denominador_idosos AS (
     SELECT c.co_seq_cidadao, c.no_cidadao, c.nu_cpf, cve.nu_ine, eq.no_equipe
