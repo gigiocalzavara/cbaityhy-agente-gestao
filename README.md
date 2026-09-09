@@ -1,86 +1,170 @@
 # CBAItyhy — Inteligência APS
 
-Aplicação web conversacional para inteligência e gestão da Atenção Primária à Saúde. A interface segue o modelo de assistentes como ChatGPT, combinando conhecimento normativo da CBAItyhy com consultas determinísticas ao PostgreSQL do e-SUS PEC.
+Aplicação web conversacional para gestão da Atenção Primária à Saúde. A interface funciona no modelo de um chat de IA, combinando dados reais do e-SUS PEC, conhecimento normativo compartilhado da CBAItyhy e análise gerencial.
 
-## Direção atual do produto
-
-O WhatsApp deixou de ser a interface principal. O núcleo passa a ser uma aplicação web própria, com chat, histórico, indicadores, busca ativa, território e visualizações gerenciais.
+## Arquitetura
 
 ```text
 Usuário autenticado
-      ↓
-Aplicação Next.js
-      ↓
-API / Agent Service
-      ├── conversa / análise
-      ├── RAG normativo → Supabase IA compartilhado da CBAItyhy
-      └── dado assistencial → Tool SQL homologada → PostgreSQL PEC READ ONLY
-                                      ↓
-                                resposta estruturada
-                                      ├── texto
-                                      ├── cards
-                                      ├── tabelas
-                                      └── gráficos
+        ↓
+Next.js / React
+        ↓
+/api/chat
+        ↓
+Management Agent
+   ├── RAG normativo → Supabase CBAItyhy
+   └── OpenAI function calling
+            ↓
+       Tool Registry
+            ↓
+   SQL homologado/versionado
+            ↓
+   PostgreSQL e-SUS PEC
+       BEGIN READ ONLY
+            ↓
+      JSON controlado
+            ↓
+   resposta + tabela + gráfico
 ```
 
-## RAG compartilhado
-
-O projeto usa a mesma base vetorial já existente no módulo CBAItyhy do Azurra Leads / Suporte SUS.
-
-Estrutura reutilizada:
-
-- `knowledge_sources`
-- `knowledge_chunks`
-- RPC `match_knowledge_chunks`
-- embeddings OpenAI `text-embedding-3-small` com 1536 dimensões
-- isolamento por `organization_id` e `municipality_id`
-- bucket de documentos `ai-knowledge`
-
-O novo sistema é consumidor dessa base. Não cria uma segunda base de conhecimento nem duplica a indexação.
-
-## Stack
-
-- Next.js 16
-- React 19
-- TypeScript
-- OpenAI Responses API
-- Supabase / pgvector para RAG
-- PostgreSQL e-SUS PEC com usuário READ ONLY
-- SQL homologado em `sql/tools/`
-
-O n8n não faz parte do núcleo do agente. Poderá ser usado futuramente apenas em automações periféricas, como relatórios agendados, notificações, integrações e rotinas administrativas.
-
-## Regras de segurança
-
-1. O LLM não recebe credenciais do PostgreSQL.
-2. O LLM não escreve SQL livre para execução em produção.
-3. As tools usam somente consultas versionadas em `sql/tools/`.
-4. O usuário PostgreSQL deve ser `READ ONLY` e usar `statement_timeout` curto.
-5. CPF exibido em busca ativa deve permanecer mascarado.
-6. Respostas nominais exigirão autorização por perfil e município.
-7. Logs não devem armazenar CPF completo, CNS completo, tokens ou senhas.
-8. O `CBAITYHY_AI_SUPABASE_SECRET_KEY` é exclusivamente server-side.
-
-## Estrutura atual
-
-- `app/` — aplicação Next.js e API do chat.
-- `lib/rag.ts` — cliente server-side para o RAG compartilhado da CBAItyhy.
-- `sql/tools/` — consultas homologadas do PEC.
-- `config/tool-catalog.json` — catálogo determinístico de tools.
-- `prompts/` — instruções do roteador e analista.
-- `n8n/` — legado/protótipos de automação; não é mais o runtime principal.
-- `.env.example` — contrato das variáveis sem segredos.
+O n8n não faz parte do núcleo conversacional. Pode ser usado futuramente apenas para automações periféricas, como relatórios agendados, notificações e ingestões.
 
 ## Estado atual
 
-A primeira interface conversacional e o endpoint `/api/chat` já estão implementados. Nesta etapa, o chat consulta o RAG compartilhado e responde com fontes da base CBAItyhy.
+Já estão implementados:
 
-## Próximas etapas
+- interface conversacional estilo ChatGPT;
+- Supabase Auth via backend;
+- vínculo de usuário com organização, município e perfil;
+- RAG compartilhado com o módulo CBAItyhy do Azurra Leads;
+- Agent Service usando OpenAI Responses API;
+- function calling apenas para tools homologadas;
+- conexão PostgreSQL do PEC com transação READ ONLY e timeout;
+- registry das 10 tools existentes;
+- normalização de parâmetros INE/logradouro;
+- bloqueio específico para tools nominais;
+- mascaramento defensivo de CPF/CNS;
+- retorno de texto, fontes, tabela e gráfico dentro da conversa.
 
-1. Implementar autenticação e vínculo usuário → município → perfil.
-2. Criar o Agent Service com tool calling controlado.
-3. Conectar o catálogo de SQL homologado ao PostgreSQL do PEC.
-4. Retornar respostas estruturadas com texto, cards, tabelas e gráficos.
-5. Liberar busca ativa nominal somente após RBAC e auditoria.
-6. Criar dashboards e histórico persistente de conversas.
-7. Acrescentar indicadores de Saúde Bucal (`tb_fat_atendimento_odonto`, `tb_fat_proced_atend_odonto`).
+## Segurança
+
+- O modelo não recebe credenciais do PEC.
+- O modelo não escreve SQL livre para execução.
+- Só existem as tools registradas em `config/tool-catalog.json`.
+- A conexão PEC deve usar usuário dedicado `READ ONLY`.
+- Cada consulta roda em `BEGIN READ ONLY` com `statement_timeout`.
+- Parâmetros são normalizados pelo backend antes da execução.
+- CPF e CNS são mascarados antes de sair da camada de tool.
+- Tools nominais exigem `nominal_access=true` e perfil autorizado.
+- Organização e município vêm da sessão autenticada, não do prompt do usuário.
+- A secret key do Supabase permanece exclusivamente server-side.
+
+## Autenticação e município
+
+A autenticação usa Supabase Auth no mesmo projeto de IA da CBAItyhy. A migration abaixo cria o vínculo de autorização:
+
+```text
+supabase/migrations/001_management_profiles.sql
+```
+
+Fluxo:
+
+```text
+auth_user_id
+→ organization_id
+→ municipality_id
+→ role
+→ nominal_access
+```
+
+Perfis previstos:
+
+- `admin`
+- `manager`
+- `municipal_manager`
+- `coordinator`
+- `team`
+
+## RAG compartilhado
+
+O produto não cria outra base vetorial. Ele consome a estrutura já existente no Suporte SUS:
+
+```text
+knowledge_sources
+knowledge_chunks
+rpc/match_knowledge_chunks
+Storage: ai-knowledge
+Embedding: text-embedding-3-small / 1536 dimensões
+```
+
+A recuperação preserva `organization_id` e `municipality_id`.
+
+## Tools PEC
+
+| Tool | Tipo | Finalidade |
+|---|---|---|
+| `tool_indicador_citopatologico` | agregado | Rastreamento citopatológico em 36 meses |
+| `tool_busca_ativa_gestantes_atraso` | nominal | Gestantes com pré-natal atrasado |
+| `tool_indicador_hipertensao` | agregado | Acompanhamento de hipertensão |
+| `tool_indicador_diabetes` | agregado | HbA1c / acompanhamento de diabetes |
+| `tool_indicador_idoso` | agregado | Avaliação anual da pessoa idosa |
+| `tool_busca_ativa_idosos` | nominal | Idosos sem acompanhamento recente |
+| `tool_indicador_vacinacao_infantil` | agregado | Penta + VIP em crianças de 12–23 meses |
+| `tool_censo_gestantes` | agregado | Censo de gestantes ativas |
+| `tool_busca_territorial_rua` | agregado | Censo territorial por logradouro |
+| `tool_auditoria_cadastros` | agregado | Vigência cadastral em 24 meses |
+
+## Estrutura principal
+
+```text
+app/
+  api/
+    auth/
+    chat/
+  login/
+  page.tsx
+
+lib/
+  agent.ts
+  auth.ts
+  pec.ts
+  rag.ts
+  tool-registry.ts
+
+config/
+  tool-catalog.json
+
+sql/tools/
+  *.sql
+
+supabase/migrations/
+  001_management_profiles.sql
+```
+
+## Configuração
+
+Copie `.env.example` para `.env.local` e configure:
+
+- PostgreSQL READ ONLY do PEC;
+- URL e secret key do Supabase de IA da CBAItyhy;
+- `CBAITYHY_ORGANIZATION_ID`;
+- OpenAI API Key.
+
+Depois:
+
+```bash
+npm install
+npm run dev
+```
+
+Antes do primeiro login, aplique `001_management_profiles.sql`, crie o usuário no Supabase Auth e registre o vínculo desse usuário em `management_profiles`.
+
+## Próximos blocos
+
+- seletor multi-município para administradores CBAItyhy;
+- dashboard de visão geral fora do chat;
+- exportação CSV/PDF;
+- histórico persistente de conversas;
+- auditoria detalhada das execuções de tools;
+- indicadores de Saúde Bucal;
+- automações periféricas opcionais via n8n.
