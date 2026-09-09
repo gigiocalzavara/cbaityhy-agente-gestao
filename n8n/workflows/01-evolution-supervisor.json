@@ -1,0 +1,97 @@
+{
+  "name": "CBAItyhy APS Agent - Evolution Supervisor",
+  "nodes": [
+    {
+      "parameters": {"httpMethod":"POST","path":"cbaityhy/aps-agent/inbound","responseMode":"onReceived","options":{}},
+      "id":"webhook-evolution","name":"Evolution Inbound","type":"n8n-nodes-base.webhook","typeVersion":2,"position":[-1280,0]
+    },
+    {
+      "parameters": {"jsCode":"const body = $json.body ?? $json;\nconst data = body.data ?? body; const key = data.key ?? {};\nif (key.fromMe === true) return [{json:{ignored:true,reason:'from_me'}}];\nconst remoteJid = key.remoteJid ?? data.remoteJid ?? null; const m=data.message ?? {};\nconst text=m.conversation ?? m.extendedTextMessage?.text ?? m.imageMessage?.caption ?? m.videoMessage?.caption ?? data.text ?? null;\nif (!remoteJid || !text || !String(text).trim()) return [{json:{ignored:true,reason:'unsupported_or_empty_message',remoteJid}}];\nreturn [{json:{ignored:false,correlation_id:`${Date.now()}-${Math.random().toString(36).slice(2,10)}`,remoteJid,pushName:data.pushName??null,message_id:key.id??null,text:String(text).trim().slice(0,4000),received_at:new Date().toISOString()}}];"},
+      "id":"sanitize","name":"Sanitize Evolution Payload","type":"n8n-nodes-base.code","typeVersion":2,"position":[-1060,0]
+    },
+    {
+      "parameters":{"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"strict"},"conditions":[{"id":"not-ignored","leftValue":"={{$json.ignored}}","rightValue":false,"operator":{"type":"boolean","operation":"false","singleValue":true}}],"combinator":"and"},"options":{}},
+      "id":"if-valid","name":"Process Message?","type":"n8n-nodes-base.if","typeVersion":2,"position":[-840,0]
+    },
+    {
+      "parameters":{"method":"POST","url":"https://api.openai.com/v1/chat/completions","sendHeaders":true,"headerParameters":{"parameters":[{"name":"Authorization","value":"=Bearer {{$env.OPENAI_API_KEY}}"},{"name":"Content-Type","value":"application/json"}]},"sendBody":true,"specifyBody":"json","jsonBody":"={\"model\":\"{{$env.OPENAI_MODEL}}\",\"temperature\":0,\"response_format\":{\"type\":\"json_object\"},\"messages\":[{\"role\":\"system\",\"content\":\"Você é o roteador do agente de gestão APS CBAItyhy. Responda SOMENTE JSON. Intents: TRIVIAL, NORMATIVE_RAG, INDICATOR, NOMINAL_SEARCH, UNSUPPORTED. Tools permitidas: tool_indicador_citopatologico, tool_busca_ativa_gestantes_atraso, tool_indicador_hipertensao, tool_indicador_diabetes, tool_indicador_idoso, tool_busca_ativa_idosos, tool_indicador_vacinacao_infantil, tool_censo_gestantes, tool_busca_territorial_rua, tool_auditoria_cadastros. Nunca gere SQL. Formato: {intent,tool_id,parameters:{ine,logradouro},needs_rag,needs_chart,reason}. Questões normativas usam NORMATIVE_RAG. Listas nominais usam NOMINAL_SEARCH apenas quando necessárias.\"},{\"role\":\"user\",\"content\":{{$json.text.toJsonString()}}}]}","options":{"timeout":30000}},
+      "id":"router-llm","name":"LLM Router","type":"n8n-nodes-base.httpRequest","typeVersion":4.2,"position":[-600,-80]
+    },
+    {
+      "parameters":{"jsCode":"const original=$('Sanitize Evolution Payload').item.json; const raw=$json.choices?.[0]?.message?.content ?? '{}'; let r; try{r=JSON.parse(raw)}catch{r={intent:'UNSUPPORTED',tool_id:null,parameters:{},needs_rag:false,needs_chart:false,reason:'invalid_router_json'}}; const allowed={tool_indicador_citopatologico:{nominal:false,chart:true},tool_busca_ativa_gestantes_atraso:{nominal:true,chart:false},tool_indicador_hipertensao:{nominal:false,chart:true},tool_indicador_diabetes:{nominal:false,chart:true},tool_indicador_idoso:{nominal:false,chart:true},tool_busca_ativa_idosos:{nominal:true,chart:false},tool_indicador_vacinacao_infantil:{nominal:false,chart:true},tool_censo_gestantes:{nominal:false,chart:true},tool_busca_territorial_rua:{nominal:false,chart:true},tool_auditoria_cadastros:{nominal:false,chart:true}}; const p=r.parameters??{}; p.ine=p.ine?String(p.ine).replace(/\\D/g,'').slice(0,10):null; p.logradouro=p.logradouro?String(p.logradouro).normalize('NFKC').replace(/[;%_'\"\\\\]/g,' ').replace(/\\s+/g,' ').trim().slice(0,80):null; if(['INDICATOR','NOMINAL_SEARCH'].includes(r.intent)&&!allowed[r.tool_id]){r={intent:'UNSUPPORTED',tool_id:null,parameters:{},needs_rag:false,needs_chart:false,reason:'tool_not_allowed'}} return [{json:{...original,...r,parameters:p,tool_meta:r.tool_id?allowed[r.tool_id]:null}}];"},
+      "id":"validate-router","name":"Parse + Validate Router","type":"n8n-nodes-base.code","typeVersion":2,"position":[-360,-80]
+    },
+    {
+      "parameters":{"rules":{"values":[{"conditions":{"conditions":[{"leftValue":"={{$json.intent}}","rightValue":"INDICATOR","operator":{"type":"string","operation":"equals"}}]},"renameOutput":true,"outputKey":"data"},{"conditions":{"conditions":[{"leftValue":"={{$json.intent}}","rightValue":"NOMINAL_SEARCH","operator":{"type":"string","operation":"equals"}}]},"renameOutput":true,"outputKey":"data"},{"conditions":{"conditions":[{"leftValue":"={{$json.intent}}","rightValue":"NORMATIVE_RAG","operator":{"type":"string","operation":"equals"}}]},"renameOutput":true,"outputKey":"rag"}]},"options":{"fallbackOutput":"extra"}},
+      "id":"switch-intent","name":"Switch Intent","type":"n8n-nodes-base.switch","typeVersion":3.2,"position":[-120,-80]
+    },
+    {
+      "parameters":{"method":"GET","url":"=https://raw.githubusercontent.com/gigiocalzavara/cbaityhy-agente-gestao/main/sql/tools/{{$json.tool_id}}.sql","options":{"response":{"response":{"responseFormat":"text"}},"timeout":15000}},
+      "id":"fetch-sql","name":"Fetch Allowlisted SQL","type":"n8n-nodes-base.httpRequest","typeVersion":4.2,"position":[140,-220]
+    },
+    {
+      "parameters":{"jsCode":"const ctx=$('Parse + Validate Router').item.json; let sql=$json.data ?? $json.body ?? $json; if(typeof sql!=='string') sql=String(sql); if(!/^\\s*(WITH|SELECT)\\b/i.test(sql) || /\\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|GRANT|REVOKE|COPY)\\b/i.test(sql)) throw new Error('SQL fora da política read-only'); if(ctx.tool_id==='tool_indicador_idoso'||ctx.tool_id==='tool_busca_ativa_idosos'||ctx.tool_id==='tool_censo_gestantes') sql=sql.replace(/NULL::varchar AS ine_filtro/i, `${ctx.parameters?.ine ? `'${ctx.parameters.ine}'` : 'NULL'}::varchar AS ine_filtro`); if(ctx.tool_id==='tool_busca_territorial_rua'){const rua=(ctx.parameters?.logradouro??'').replace(/'/g,''); const ine=ctx.parameters?.ine; sql=sql.replace(/'SAO JOSE'::varchar AS termo_busca_logradouro/i, `'${rua}'::varchar AS termo_busca_logradouro`).replace(/NULL::varchar AS ine_filtro/i, `${ine?`'${ine}'`:'NULL'}::varchar AS ine_filtro`);} return [{json:{...ctx,sql}}];"},
+      "id":"prepare-sql","name":"Prepare Homologated SQL","type":"n8n-nodes-base.code","typeVersion":2,"position":[380,-220]
+    },
+    {
+      "parameters":{"operation":"executeQuery","query":"={{$json.sql}}","options":{}},
+      "id":"postgres-pec","name":"PEC PostgreSQL READ ONLY","type":"n8n-nodes-base.postgres","typeVersion":2.6,"position":[620,-220],"credentials":{"postgres":{"id":"REPLACE_WITH_PEC_READONLY_CREDENTIAL_ID","name":"PEC PostgreSQL READ ONLY"}}
+    },
+    {
+      "parameters":{"jsCode":"const ctx=$('Prepare Homologated SQL').item.json; const rows=$input.all().map(i=>i.json); return [{json:{...ctx,tool_result:rows,rag_context:''}}];"},
+      "id":"collect-data","name":"Collect Tool Result","type":"n8n-nodes-base.code","typeVersion":2,"position":[860,-220]
+    },
+    {
+      "parameters":{"method":"POST","url":"https://api.openai.com/v1/embeddings","sendHeaders":true,"headerParameters":{"parameters":[{"name":"Authorization","value":"=Bearer {{$env.OPENAI_API_KEY}}"},{"name":"Content-Type","value":"application/json"}]},"sendBody":true,"specifyBody":"json","jsonBody":"={\"model\":\"text-embedding-3-small\",\"input\":{{$json.text.toJsonString()}}}","options":{"timeout":30000}},
+      "id":"rag-embedding","name":"RAG - Create Embedding","type":"n8n-nodes-base.httpRequest","typeVersion":4.2,"position":[140,80]
+    },
+    {
+      "parameters":{"method":"POST","url":"={{$env.SUPABASE_URL}}/rest/v1/rpc/{{$env.SUPABASE_MATCH_FUNCTION}}","sendHeaders":true,"headerParameters":{"parameters":[{"name":"apikey","value":"={{$env.SUPABASE_SERVICE_ROLE_KEY}}"},{"name":"Authorization","value":"=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"},{"name":"Content-Type","value":"application/json"}]},"sendBody":true,"specifyBody":"json","jsonBody":"={\"query_embedding\":{{$json.data[0].embedding}},\"match_count\":6}","options":{"timeout":30000}},
+      "id":"rag-supabase","name":"RAG - Supabase Match","type":"n8n-nodes-base.httpRequest","typeVersion":4.2,"position":[380,80]
+    },
+    {
+      "parameters":{"jsCode":"const ctx=$('Parse + Validate Router').item.json; const docs=Array.isArray($json)?$json:($json.data??$json.body??[]); return [{json:{...ctx,tool_result:[],rag_context:JSON.stringify(docs).slice(0,16000)}}];"},
+      "id":"collect-rag","name":"Collect RAG Context","type":"n8n-nodes-base.code","typeVersion":2,"position":[620,80]
+    },
+    {
+      "parameters":{"method":"POST","url":"https://api.openai.com/v1/chat/completions","sendHeaders":true,"headerParameters":{"parameters":[{"name":"Authorization","value":"=Bearer {{$env.OPENAI_API_KEY}}"},{"name":"Content-Type","value":"application/json"}]},"sendBody":true,"specifyBody":"json","jsonBody":"={\"model\":\"{{$env.OPENAI_MODEL}}\",\"temperature\":0.2,\"messages\":[{\"role\":\"system\",\"content\":\"Você é o Analista de Gestão APS da CBAItyhy. Responda em português, de forma executiva e operacional. Nunca invente metas, regras normativas ou dados. Não recalcule percentuais já retornados pela tool. Separe dado observado, interpretação e recomendação. Em listas nominais, seja conciso e preserve CPF mascarado. Se houver contexto normativo RAG, use-o sem extrapolar.\"},{\"role\":\"user\",\"content\":\"Pergunta: {{$json.text}}\\nTool: {{$json.tool_id || 'nenhuma'}}\\nDados: {{JSON.stringify($json.tool_result || []).slice(0,18000)}}\\nRAG: {{$json.rag_context || ''}}\"}]}","options":{"timeout":45000}},
+      "id":"analyst","name":"LLM Analyst","type":"n8n-nodes-base.httpRequest","typeVersion":4.2,"position":[1100,-80]
+    },
+    {
+      "parameters":{"jsCode":"const ctx=$('Parse + Validate Router').item.json; const answer=$json.choices?.[0]?.message?.content ?? 'Não consegui gerar a análise neste momento.'; return [{json:{...ctx,answer}}];"},
+      "id":"format-answer","name":"Format Answer","type":"n8n-nodes-base.code","typeVersion":2,"position":[1340,-80]
+    },
+    {
+      "parameters":{"method":"POST","url":"={{$env.EVOLUTION_API_BASE_URL}}/message/sendText/{{$env.EVOLUTION_API_INSTANCE}}","sendHeaders":true,"headerParameters":{"parameters":[{"name":"apikey","value":"={{$env.EVOLUTION_API_KEY}}"},{"name":"Content-Type","value":"application/json"}]},"sendBody":true,"specifyBody":"json","jsonBody":"={\"number\":\"{{$json.remoteJid.replace('@s.whatsapp.net','')}}\",\"text\":{{$json.answer.toJsonString()}}}","options":{"timeout":30000}},
+      "id":"evolution-send","name":"Evolution sendText","type":"n8n-nodes-base.httpRequest","typeVersion":4.2,"position":[1580,-80]
+    },
+    {
+      "parameters":{"jsCode":"const j=$json; let answer='Posso ajudar com indicadores da APS, auditoria de cadastros, censo/busca territorial e dúvidas normativas da base de conhecimento.'; if(j.intent==='TRIVIAL') answer='Olá! Sou o agente de gestão APS da CBAItyhy. Posso analisar indicadores, cadastros, território e apoiar dúvidas normativas.'; return [{json:{...j,answer}}];"},
+      "id":"fallback-answer","name":"Fallback Answer","type":"n8n-nodes-base.code","typeVersion":2,"position":[620,300]
+    }
+  ],
+  "connections": {
+    "Evolution Inbound":{"main":[[{"node":"Sanitize Evolution Payload","type":"main","index":0}]]},
+    "Sanitize Evolution Payload":{"main":[[{"node":"Process Message?","type":"main","index":0}]]},
+    "Process Message?":{"main":[[{"node":"LLM Router","type":"main","index":0}],[]]},
+    "LLM Router":{"main":[[{"node":"Parse + Validate Router","type":"main","index":0}]]},
+    "Parse + Validate Router":{"main":[[{"node":"Switch Intent","type":"main","index":0}]]},
+    "Switch Intent":{"main":[[{"node":"Fetch Allowlisted SQL","type":"main","index":0}],[{"node":"Fetch Allowlisted SQL","type":"main","index":0}],[{"node":"RAG - Create Embedding","type":"main","index":0}],[{"node":"Fallback Answer","type":"main","index":0}]]},
+    "Fetch Allowlisted SQL":{"main":[[{"node":"Prepare Homologated SQL","type":"main","index":0}]]},
+    "Prepare Homologated SQL":{"main":[[{"node":"PEC PostgreSQL READ ONLY","type":"main","index":0}]]},
+    "PEC PostgreSQL READ ONLY":{"main":[[{"node":"Collect Tool Result","type":"main","index":0}]]},
+    "Collect Tool Result":{"main":[[{"node":"LLM Analyst","type":"main","index":0}]]},
+    "RAG - Create Embedding":{"main":[[{"node":"RAG - Supabase Match","type":"main","index":0}]]},
+    "RAG - Supabase Match":{"main":[[{"node":"Collect RAG Context","type":"main","index":0}]]},
+    "Collect RAG Context":{"main":[[{"node":"LLM Analyst","type":"main","index":0}]]},
+    "LLM Analyst":{"main":[[{"node":"Format Answer","type":"main","index":0}]]},
+    "Format Answer":{"main":[[{"node":"Evolution sendText","type":"main","index":0}]]},
+    "Fallback Answer":{"main":[[{"node":"Evolution sendText","type":"main","index":0}]]}
+  },
+  "pinData":{},
+  "settings":{"executionOrder":"v1"},
+  "active":false,
+  "versionId":"cbaityhy-aps-supervisor-v1",
+  "meta":{"templateCredsSetupCompleted":false},
+  "tags":[]
+}
