@@ -23,7 +23,7 @@ function serviceHeaders() {
   const { secret } = env();
   return {
     apikey: secret,
-    Authorization: `Bearer ${secret}`,
+    ...(secret.startsWith("eyJ") ? { Authorization: `Bearer ${secret}` } : {}),
     "Content-Type": "application/json",
   };
 }
