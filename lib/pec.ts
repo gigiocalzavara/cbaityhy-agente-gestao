@@ -1,40 +1,44 @@
 import "server-only";
 import { Pool, type QueryResultRow } from "pg";
+import { getPecConnection } from "@/lib/pec-connections";
 
-let pool: Pool | null = null;
+const pools = new Map<string, Pool>();
 
-function getPool() {
-  if (pool) return pool;
+async function getPool(municipalityId: string) {
+  const cached = pools.get(municipalityId);
+  if (cached) return cached;
 
-  const host = process.env.PEC_PG_HOST;
-  const database = process.env.PEC_PG_DATABASE;
-  const user = process.env.PEC_PG_USER;
-  const password = process.env.PEC_PG_PASSWORD;
-
-  if (!host || !database || !user || !password) {
-    throw new Error("Conexão READ ONLY com o PostgreSQL do PEC não configurada.");
-  }
-
-  pool = new Pool({
-    host,
-    port: Number(process.env.PEC_PG_PORT || 5432),
-    database,
-    user,
-    password,
+  const config = await getPecConnection(municipalityId);
+  const pool = new Pool({
+    host: config.host,
+    port: config.port,
+    database: config.databaseName,
+    user: config.username,
+    password: config.password,
     max: Number(process.env.PEC_PG_POOL_MAX || 5),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
-    ssl: String(process.env.PEC_PG_SSL || "true") === "true" ? { rejectUnauthorized: false } : false,
+    ssl: config.sslEnabled ? { rejectUnauthorized: false } : false,
   });
 
+  pool.on("error", () => pools.delete(municipalityId));
+  pools.set(municipalityId, pool);
   return pool;
 }
 
+export async function invalidateMunicipalityPool(municipalityId: string) {
+  const pool = pools.get(municipalityId);
+  if (!pool) return;
+  pools.delete(municipalityId);
+  await pool.end().catch(() => undefined);
+}
+
 export async function executeReadOnlyQuery<T extends QueryResultRow = Record<string, unknown>>(
+  municipalityId: string,
   sql: string,
   values: unknown[] = [],
 ) {
-  const client = await getPool().connect();
+  const client = await (await getPool(municipalityId)).connect();
   const timeout = Math.max(1000, Math.min(Number(process.env.PEC_PG_STATEMENT_TIMEOUT_MS || 8000), 15000));
 
   try {
