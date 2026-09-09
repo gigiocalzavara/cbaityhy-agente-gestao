@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+  app:
+    image: ghcr.io/gigiocalzavara/cbaityhy-agente-gestao:latest
+    environment:
+      NODE_ENV: production
+      APP_URL: https://${APP_DOMAIN}
+
+      CBAITYHY_OPERATIONAL_SUPABASE_URL: ${CBAITYHY_OPERATIONAL_SUPABASE_URL}
+      CBAITYHY_OPERATIONAL_SUPABASE_SECRET_KEY: ${CBAITYHY_OPERATIONAL_SUPABASE_SECRET_KEY}
+
+      CBAITYHY_AI_SUPABASE_URL: ${CBAITYHY_AI_SUPABASE_URL}
+      CBAITYHY_AI_SUPABASE_SECRET_KEY: ${CBAITYHY_AI_SUPABASE_SECRET_KEY}
+      CBAITYHY_ORGANIZATION_ID: ${CBAITYHY_ORGANIZATION_ID}
+
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-luna}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+
+      PEC_PG_HOST: ${PEC_PG_HOST}
+      PEC_PG_PORT: ${PEC_PG_PORT:-5432}
+      PEC_PG_DATABASE: ${PEC_PG_DATABASE}
+      PEC_PG_USER: ${PEC_PG_USER}
+      PEC_PG_PASSWORD: ${PEC_PG_PASSWORD}
+      PEC_PG_SSL: ${PEC_PG_SSL:-true}
+      PEC_PG_POOL_MAX: ${PEC_PG_POOL_MAX:-5}
+      PEC_PG_STATEMENT_TIMEOUT_MS: ${PEC_PG_STATEMENT_TIMEOUT_MS:-8000}
+
+      DEFAULT_RESULT_LIMIT: ${DEFAULT_RESULT_LIMIT:-15}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+    networks:
+      - traefik_public
+
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+        window: 120s
+      update_config:
+        order: start-first
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=${TRAEFIK_NETWORK:-network_public}
+        - traefik.http.routers.cbaityhy-gestao.rule=Host(`${APP_DOMAIN}`)
+        - traefik.http.routers.cbaityhy-gestao.entrypoints=websecure
+        - traefik.http.routers.cbaityhy-gestao.tls=true
+        - traefik.http.routers.cbaityhy-gestao.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencryptresolver}
+        - traefik.http.services.cbaityhy-gestao.loadbalancer.server.port=3000
+        - traefik.http.services.cbaityhy-gestao.loadbalancer.healthcheck.path=/api/health
+        - traefik.http.services.cbaityhy-gestao.loadbalancer.healthcheck.interval=30s
+        - traefik.http.services.cbaityhy-gestao.loadbalancer.healthcheck.timeout=5s
+
+networks:
+  traefik_public:
+    external: true
+    name: ${TRAEFIK_NETWORK:-network_public}
