@@ -4,10 +4,13 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Identity = {
   email: string;
+  municipalityId: string;
   municipalityName: string;
   role: string;
   nominalAccess: boolean;
 };
+
+type Municipality = { id: string; name: string; state_code: string; ibge_code: string; pec?: { last_test_status?: string | null } | null };
 
 type Presentation = {
   kind: string;
@@ -42,11 +45,7 @@ function DataPresentation({ presentation }: { presentation: Presentation }) {
   const max = Math.max(...(presentation.chart?.data.map((item) => Math.abs(item.value)) || [1]), 1);
   return (
     <div className="data-result">
-      <div className="data-result-head">
-        <span>{presentation.nominal ? "Busca ativa" : "Dados do PEC"}</span>
-        <code>{presentation.toolId}</code>
-      </div>
-
+      <div className="data-result-head"><span>{presentation.nominal ? "Busca ativa" : "Dados do PEC"}</span><code>{presentation.toolId}</code></div>
       {presentation.chart && presentation.chart.data.length > 0 && (
         <div className="inline-chart">
           <div className="chart-title">{presentation.chart.valueKey.replaceAll("_", " ")}</div>
@@ -59,88 +58,64 @@ function DataPresentation({ presentation }: { presentation: Presentation }) {
           ))}
         </div>
       )}
-
-      <div className="table-wrap">
-        <table>
-          <thead><tr>{presentation.columns.map((column) => <th key={column}>{column.replaceAll("_", " ")}</th>)}</tr></thead>
-          <tbody>
-            {presentation.rows.map((row, index) => (
-              <tr key={index}>{presentation.columns.map((column) => <td key={column}>{pretty(row[column])}</td>)}</tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <div className="table-wrap"><table><thead><tr>{presentation.columns.map((column) => <th key={column}>{column.replaceAll("_", " ")}</th>)}</tr></thead><tbody>{presentation.rows.map((row, index) => <tr key={index}>{presentation.columns.map((column) => <td key={column}>{pretty(row[column])}</td>)}</tr>)}</tbody></table></div>
     </div>
   );
 }
 
 export default function Home() {
   const [identity, setIdentity] = useState<Identity | null>(null);
+  const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/auth/me", { cache: "no-store" }).then(async (response) => {
-      if (!response.ok) {
-        window.location.href = "/login";
-        return;
-      }
-      setIdentity(await response.json());
-    });
-  }, []);
+  async function loadIdentity() {
+    const response = await fetch("/api/auth/me", { cache: "no-store" });
+    if (!response.ok) { window.location.href = "/login"; return; }
+    setIdentity(await response.json());
+    const municipalitiesResponse = await fetch("/api/municipalities", { cache: "no-store" });
+    if (municipalitiesResponse.ok) setMunicipalities(await municipalitiesResponse.json());
+  }
+
+  useEffect(() => { void loadIdentity(); }, []);
 
   const canSend = useMemo(() => input.trim().length > 1 && !loading && Boolean(identity), [input, loading, identity]);
+
+  async function changeMunicipality(municipalityId: string) {
+    const response = await fetch("/api/municipalities/select", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ municipalityId }),
+    });
+    if (!response.ok) return;
+    setMessages([]);
+    await loadIdentity();
+  }
 
   async function send(messageText?: string) {
     const text = (messageText ?? input).trim();
     if (text.length < 2 || loading || !identity) return;
     const history = messages.map(({ role, content }) => ({ role, content }));
     setMessages((current) => [...current, { role: "user", content: text }]);
-    setInput("");
-    setLoading(true);
-
+    setInput(""); setLoading(true);
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, history }),
-      });
+      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text, history }) });
       const data = await response.json();
-      if (response.status === 401) {
-        window.location.href = "/login";
-        return;
-      }
+      if (response.status === 401) { window.location.href = "/login"; return; }
       if (!response.ok) throw new Error(data.message || "Falha ao consultar a IA.");
-
-      setMessages((current) => [...current, {
-        role: "assistant",
-        content: data.answer,
-        sources: data.sources || [],
-        toolUsed: data.toolUsed,
-        presentation: data.presentation,
-      }]);
+      setMessages((current) => [...current, { role: "assistant", content: data.answer, sources: data.sources || [], toolUsed: data.toolUsed, presentation: data.presentation }]);
     } catch (error) {
-      setMessages((current) => [...current, {
-        role: "assistant",
-        content: error instanceof Error ? error.message : "Não foi possível concluir a consulta.",
-      }]);
-    } finally {
-      setLoading(false);
-    }
+      setMessages((current) => [...current, { role: "assistant", content: error instanceof Error ? error.message : "Não foi possível concluir a consulta." }]);
+    } finally { setLoading(false); }
   }
 
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    void send();
-  }
-
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
-  }
-
+  function submit(event: FormEvent) { event.preventDefault(); void send(); }
+  async function logout() { await fetch("/api/auth/logout", { method: "POST" }); window.location.href = "/login"; }
   if (!identity) return <main className="loading-screen">Carregando ambiente de gestão…</main>;
+
+  const currentMunicipality = municipalities.find((item) => item.id === identity.municipalityId);
+  const pecConnected = currentMunicipality?.pec?.last_test_status === "success";
 
   return (
     <main className="app-shell">
@@ -154,9 +129,13 @@ export default function Home() {
           <button className="nav-item" disabled>Indicadores</button>
           <button className="nav-item" disabled>Busca ativa</button>
           <button className="nav-item" disabled>Território</button>
+          {identity.role === "admin" && <a className="nav-item nav-link" href="/admin/municipios">Municípios / PEC</a>}
         </nav>
         <div className="sidebar-footer">
-          <span>Município ativo</span><strong>{identity.municipalityName}</strong>
+          <span>Município ativo</span>
+          <select className="municipality-select" value={identity.municipalityId} onChange={(event) => void changeMunicipality(event.target.value)}>
+            {municipalities.map((municipality) => <option value={municipality.id} key={municipality.id}>{municipality.name} - {municipality.state_code}</option>)}
+          </select>
           <span className="profile-line">{identity.role}{identity.nominalAccess ? " · nominal habilitado" : ""}</span>
           <button className="logout-button" onClick={logout}>Sair</button>
         </div>
@@ -165,44 +144,16 @@ export default function Home() {
       <section className="chat-panel">
         <header className="topbar">
           <div><strong>Assistente de Gestão APS</strong><span>{identity.municipalityName} · PEC + conhecimento normativo</span></div>
-          <div className="status-group"><span className="status"><i /> RAG conectado</span><span className="status pec"><i /> PEC habilitado</span></div>
+          <div className="status-group"><span className="status"><i /> RAG conectado</span><span className={`status pec ${pecConnected ? "" : "offline"}`}><i /> {pecConnected ? "PEC conectado" : "PEC não validado"}</span></div>
         </header>
-
         <div className="conversation">
           {messages.length === 0 ? (
-            <div className="welcome">
-              <div className="welcome-icon">✦</div>
-              <h1>O que você quer analisar na APS?</h1>
-              <p>Converse com os dados do PEC e com a base técnica da CBAItyhy. O agente escolhe automaticamente quando consultar indicadores, território ou conhecimento normativo.</p>
-              <div className="suggestions">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => void send(suggestion)}>{suggestion}</button>)}</div>
-            </div>
+            <div className="welcome"><div className="welcome-icon">✦</div><h1>O que você quer analisar na APS?</h1><p>Converse com os dados do PEC de <strong>{identity.municipalityName}</strong> e com a base técnica da CBAItyhy. A conexão de dados é isolada por município.</p><div className="suggestions">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => void send(suggestion)}>{suggestion}</button>)}</div></div>
           ) : (
-            <div className="messages">
-              {messages.map((message, index) => (
-                <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
-                  <div className="avatar">{message.role === "user" ? "G" : "✦"}</div>
-                  <div className="message-body">
-                    <div className="message-author">{message.role === "user" ? "Você" : "CBAItyhy IA"}</div>
-                    <div className="message-content">{message.content}</div>
-                    {message.presentation && <DataPresentation presentation={message.presentation} />}
-                    {message.sources && message.sources.length > 0 && (
-                      <div className="sources"><span>Fontes consultadas</span>{message.sources.slice(0, 5).map((source) => source.url ? <a key={source.id} href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : <span className="source-chip" key={source.id}>{source.title}</span>)}</div>
-                    )}
-                  </div>
-                </article>
-              ))}
-              {loading && <article className="message assistant"><div className="avatar">✦</div><div className="message-body"><div className="thinking">Consultando dados e analisando evidências…</div></div></article>}
-            </div>
+            <div className="messages">{messages.map((message, index) => <article className={`message ${message.role}`} key={`${message.role}-${index}`}><div className="avatar">{message.role === "user" ? "G" : "✦"}</div><div className="message-body"><div className="message-author">{message.role === "user" ? "Você" : "CBAItyhy IA"}</div><div className="message-content">{message.content}</div>{message.presentation && <DataPresentation presentation={message.presentation} />}{message.sources && message.sources.length > 0 && <div className="sources"><span>Fontes consultadas</span>{message.sources.slice(0, 5).map((source) => source.url ? <a key={source.id} href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : <span className="source-chip" key={source.id}>{source.title}</span>)}</div>}</div></article>)}{loading && <article className="message assistant"><div className="avatar">✦</div><div className="message-body"><div className="thinking">Consultando dados e analisando evidências…</div></div></article>}</div>
           )}
         </div>
-
-        <div className="composer-wrap">
-          <form className="composer" onSubmit={submit}>
-            <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (canSend) void send(); } }} placeholder="Pergunte: como está a hipertensão? Quais equipes precisam de atenção?…" rows={1} />
-            <button type="submit" disabled={!canSend}>↑</button>
-          </form>
-          <small>Consultas assistenciais usam somente tools SQL homologadas. Dados nominais dependem do perfil autorizado.</small>
-        </div>
+        <div className="composer-wrap"><form className="composer" onSubmit={submit}><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (canSend) void send(); } }} placeholder={`Pergunte sobre ${identity.municipalityName}…`} rows={1} /><button type="submit" disabled={!canSend}>↑</button></form><small>Consultas assistenciais usam somente tools SQL homologadas e a conexão PEC do município ativo.</small></div>
       </section>
     </main>
   );
