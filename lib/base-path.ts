@@ -1,6 +1,6 @@
-export const APP_BASE_PATH = "/gestao";
+export const APP_BASE_PATH = "";
 
 export function appPath(path = "/") {
-  if (!path || path === "/") return APP_BASE_PATH;
-  return `${APP_BASE_PATH}${path.startsWith("/") ? path : `/${path}`}`;
+  if (!path) return "/";
+  return path.startsWith("/") ? path : `/${path}`;
 }
