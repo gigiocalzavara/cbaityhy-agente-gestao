@@ -44,7 +44,12 @@ services:
         failure_action: rollback
       labels:
         - traefik.enable=true
+        # Compatibilidade Traefik v2/v3 e seleção explícita da overlay do Swarm.
         - traefik.docker.network=${TRAEFIK_NETWORK:-azurranet}
+        - traefik.swarm.network=${TRAEFIK_NETWORK:-azurranet}
+        # Usa o VIP do Docker Swarm em vez de depender da descoberta direta do IP da task.
+        - traefik.swarm.lbswarm=true
+        - traefik.docker.lbswarm=true
         - traefik.http.routers.cbaityhy-gestao.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/gestao`)
         - traefik.http.routers.cbaityhy-gestao.priority=200
         - traefik.http.routers.cbaityhy-gestao.entrypoints=websecure
