@@ -5,7 +5,7 @@ services:
     image: ghcr.io/gigiocalzavara/cbaityhy-agente-gestao:latest
     environment:
       NODE_ENV: production
-      APP_URL: https://${APP_DOMAIN}/gestao
+      APP_URL: https://${APP_DOMAIN}
 
       CBAITYHY_OPERATIONAL_SUPABASE_URL: ${CBAITYHY_OPERATIONAL_SUPABASE_URL}
       CBAITYHY_OPERATIONAL_SUPABASE_SECRET_KEY: ${CBAITYHY_OPERATIONAL_SUPABASE_SECRET_KEY}
@@ -46,14 +46,10 @@ services:
         - traefik.swarm.network=${TRAEFIK_NETWORK:-azurranet}
         - traefik.swarm.lbswarm=true
         - traefik.docker.lbswarm=true
-        - traefik.http.routers.cbaityhy-gestao.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/gestao`)
-        - traefik.http.routers.cbaityhy-gestao.priority=200
+        - traefik.http.routers.cbaityhy-gestao.rule=Host(`${APP_DOMAIN}`)
         - traefik.http.routers.cbaityhy-gestao.entrypoints=websecure
         - traefik.http.routers.cbaityhy-gestao.tls=true
         - traefik.http.routers.cbaityhy-gestao.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencryptresolver}
-        - traefik.http.routers.cbaityhy-gestao.middlewares=cbaityhy-gestao-strip
-        - traefik.http.middlewares.cbaityhy-gestao-strip.stripprefix.prefixes=/gestao
-        - traefik.http.middlewares.cbaityhy-gestao-strip.stripprefix.forceSlash=false
         - traefik.http.services.cbaityhy-gestao.loadbalancer.server.port=3000
 
 networks:
