@@ -11,7 +11,7 @@ gestacoes_recentes AS (
     JOIN public.tb_cidadao_vinculacao_equipe cve ON cve.co_cidadao = c.co_seq_cidadao
     LEFT JOIN public.tb_equipe eq ON eq.nu_ine = cve.nu_ine
     WHERE fat.dt_inicial_atendimento >= NOW() - INTERVAL '294 days'
-      AND (fat.ds_filtro_ciaps LIKE '%|W78|%' OR fat.ds_filtro_ciaps LIKE '%|W79|%' OR fat.ds_filtro_ciaps LIKE '%|W84|%' OR fat.ds_filtro_cids LIKE '%Z34%' OR fat.ds_filtro_cids LIKE '%Z35%' OR fat.st_gestante = 1)
+      AND (fat.ds_filtro_ciaps LIKE '%|W78|%' OR fat.ds_filtro_ciaps LIKE '%|W79|%' OR fat.ds_filtro_ciaps LIKE '%|W84|%' OR fat.ds_filtro_cids LIKE '%Z34%' OR fat.ds_filtro_cids LIKE '%Z35%')
       AND coalesce(cve.st_saida_cadastro_obito, 0) = 0
       AND coalesce(cve.st_saida_cadastro_territorio, 0) = 0
     GROUP BY coalesce(fat.nu_cpf_cidadao, fat.nu_cns), cve.nu_ine, eq.no_equipe
