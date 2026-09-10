@@ -51,9 +51,6 @@ services:
         - traefik.http.routers.cbaityhy-gestao.tls=true
         - traefik.http.routers.cbaityhy-gestao.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencryptresolver}
         - traefik.http.services.cbaityhy-gestao.loadbalancer.server.port=3000
-        - traefik.http.services.cbaityhy-gestao.loadbalancer.healthcheck.path=/gestao/api/health
-        - traefik.http.services.cbaityhy-gestao.loadbalancer.healthcheck.interval=30s
-        - traefik.http.services.cbaityhy-gestao.loadbalancer.healthcheck.timeout=5s
 
 networks:
   traefik_public:
