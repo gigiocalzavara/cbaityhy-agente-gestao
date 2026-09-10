@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { appPath } from "@/lib/base-path";
 
 type Municipality = {
   id: string;
@@ -32,8 +33,8 @@ export default function MunicipalitiesAdminPage() {
 
   async function load() {
     setLoading(true);
-    const response = await fetch("/api/municipalities", { cache: "no-store" });
-    if (response.status === 401) { window.location.href = "/login"; return; }
+    const response = await fetch(appPath("/api/municipalities"), { cache: "no-store" });
+    if (response.status === 401) { window.location.href = appPath("/login"); return; }
     const data = await response.json();
     setItems(Array.isArray(data) ? data : []);
     setLoading(false);
@@ -58,7 +59,7 @@ export default function MunicipalitiesAdminPage() {
     event.preventDefault();
     if (!selected) return;
     setMessage("Salvando conexão…");
-    const response = await fetch(`/api/municipalities/${selected.id}/connection`, {
+    const response = await fetch(appPath(`/api/municipalities/${selected.id}/connection`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, port: Number(form.port) }),
@@ -71,7 +72,7 @@ export default function MunicipalitiesAdminPage() {
   async function testConnection() {
     if (!selected) return;
     setMessage("Testando conexão READ ONLY com o PEC…");
-    const response = await fetch(`/api/municipalities/${selected.id}/connection`, { method: "POST" });
+    const response = await fetch(appPath(`/api/municipalities/${selected.id}/connection`), { method: "POST" });
     const data = await response.json();
     setMessage(response.ok ? `Conectado com sucesso ao banco ${data.details?.database_name || "PEC"}.` : data.message || "Falha na conexão.");
     await load();
@@ -79,7 +80,7 @@ export default function MunicipalitiesAdminPage() {
 
   async function createMunicipality(event: FormEvent) {
     event.preventDefault();
-    const response = await fetch("/api/municipalities", {
+    const response = await fetch(appPath("/api/municipalities"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(newMunicipality),
@@ -96,7 +97,7 @@ export default function MunicipalitiesAdminPage() {
     <main className="admin-page">
       <header className="admin-header">
         <div><span className="eyebrow">ADMINISTRAÇÃO</span><h1>Municípios e integração PEC</h1><p>Gerencie os municípios e a conexão PostgreSQL READ ONLY do e-SUS PEC.</p></div>
-        <div className="admin-actions"><a href="/">← Assistente IA</a><button onClick={() => setCreating((value) => !value)}>+ Adicionar município</button></div>
+        <div className="admin-actions"><a href={appPath("/")}>← Assistente IA</a><button onClick={() => setCreating((value) => !value)}>+ Adicionar município</button></div>
       </header>
 
       {creating && (
