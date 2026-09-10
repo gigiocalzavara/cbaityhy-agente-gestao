@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { appPath } from "@/lib/base-path";
 
 type Identity = {
   email: string;
@@ -71,10 +72,10 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
 
   async function loadIdentity() {
-    const response = await fetch("/api/auth/me", { cache: "no-store" });
-    if (!response.ok) { window.location.href = "/login"; return; }
+    const response = await fetch(appPath("/api/auth/me"), { cache: "no-store" });
+    if (!response.ok) { window.location.href = appPath("/login"); return; }
     setIdentity(await response.json());
-    const municipalitiesResponse = await fetch("/api/municipalities", { cache: "no-store" });
+    const municipalitiesResponse = await fetch(appPath("/api/municipalities"), { cache: "no-store" });
     if (municipalitiesResponse.ok) setMunicipalities(await municipalitiesResponse.json());
   }
 
@@ -83,7 +84,7 @@ export default function Home() {
   const canSend = useMemo(() => input.trim().length > 1 && !loading && Boolean(identity), [input, loading, identity]);
 
   async function changeMunicipality(municipalityId: string) {
-    const response = await fetch("/api/municipalities/select", {
+    const response = await fetch(appPath("/api/municipalities/select"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ municipalityId }),
@@ -100,9 +101,9 @@ export default function Home() {
     setMessages((current) => [...current, { role: "user", content: text }]);
     setInput(""); setLoading(true);
     try {
-      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text, history }) });
+      const response = await fetch(appPath("/api/chat"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text, history }) });
       const data = await response.json();
-      if (response.status === 401) { window.location.href = "/login"; return; }
+      if (response.status === 401) { window.location.href = appPath("/login"); return; }
       if (!response.ok) throw new Error(data.message || "Falha ao consultar a IA.");
       setMessages((current) => [...current, { role: "assistant", content: data.answer, sources: data.sources || [], toolUsed: data.toolUsed, presentation: data.presentation }]);
     } catch (error) {
@@ -111,7 +112,7 @@ export default function Home() {
   }
 
   function submit(event: FormEvent) { event.preventDefault(); void send(); }
-  async function logout() { await fetch("/api/auth/logout", { method: "POST" }); window.location.href = "/login"; }
+  async function logout() { await fetch(appPath("/api/auth/logout"), { method: "POST" }); window.location.href = appPath("/login"); }
   if (!identity) return <main className="loading-screen">Carregando ambiente de gestão…</main>;
 
   const currentMunicipality = municipalities.find((item) => item.id === identity.municipalityId);
@@ -129,12 +130,12 @@ export default function Home() {
           <button className="nav-item" disabled>Indicadores</button>
           <button className="nav-item" disabled>Busca ativa</button>
           <button className="nav-item" disabled>Território</button>
-          {identity.role === "admin" && <a className="nav-item nav-link" href="/admin/municipios">Municípios / PEC</a>}
+          {identity.role === "admin" && <a className="nav-item nav-link" href={appPath("/admin/municipios")}>Municípios / PEC</a>}
         </nav>
         <div className="sidebar-footer">
           <span>Município ativo</span>
           <select className="municipality-select" value={identity.municipalityId} onChange={(event) => void changeMunicipality(event.target.value)}>
-            {municipalities.map((municipality) => <option value={municipality.id} key={municipality.id}>{municipality.name} - {municipality.state_code}</option>)}
+            {municipalities.map((municipality) => <option value={municipality.id} key={municipality.id}>{municipality.name} - {municipality.state_code} · {municipality.ibge_code}</option>)}
           </select>
           <span className="profile-line">{identity.role}{identity.nominalAccess ? " · nominal habilitado" : ""}</span>
           <button className="logout-button" onClick={logout}>Sair</button>
