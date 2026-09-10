@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { appPath } from "@/lib/base-path";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -13,14 +14,14 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch(appPath("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Falha ao entrar.");
-      window.location.href = "/";
+      window.location.href = appPath("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao entrar.");
     } finally {
