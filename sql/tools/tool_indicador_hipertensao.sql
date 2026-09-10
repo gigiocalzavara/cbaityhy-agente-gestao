@@ -6,7 +6,7 @@ WITH hipertensos_cadastrados AS (
     JOIN public.tb_fat_atendimento_individual fat ON fat.nu_cpf_cidadao = c.nu_cpf
     WHERE coalesce(cve.st_saida_cadastro_obito, 0) = 0
       AND coalesce(cve.st_saida_cadastro_territorio, 0) = 0
-      AND (fat.ds_filtro_ciaps LIKE '%|K86|%' OR fat.ds_filtro_ciaps LIKE '%|K87|%' OR fat.ds_filtro_cids LIKE '%I10%' OR fat.st_hipertensao_arterial = 1)
+      AND (fat.ds_filtro_ciaps LIKE '%|K86|%' OR fat.ds_filtro_ciaps LIKE '%|K87|%' OR fat.ds_filtro_cids LIKE '%I10%')
       AND c.nu_cpf IS NOT NULL
 ),
 pa_aferida_6m AS (
@@ -26,3 +26,4 @@ FROM hipertensos_cadastrados hc
 LEFT JOIN pa_aferida_6m pa ON pa.nu_cpf_cidadao = hc.nu_cpf
 GROUP BY hc.nu_ine, hc.no_equipe
 ORDER BY perc_cobertura_pa DESC, total_hipertensos_ativos DESC;
+
