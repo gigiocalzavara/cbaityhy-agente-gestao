@@ -15,7 +15,7 @@ WITH gestantes_ativas AS (
       AND (
           fat.ds_filtro_ciaps LIKE '%|W78|%' OR fat.ds_filtro_ciaps LIKE '%|W79|%' 
           OR fat.ds_filtro_ciaps LIKE '%|W84|%' OR fat.ds_filtro_cids LIKE '%Z34%' 
-          OR fat.ds_filtro_cids LIKE '%Z35%' OR fat.st_gestante = 1
+          OR fat.ds_filtro_cids LIKE '%Z35%'
       )
       AND coalesce(cve.st_saida_cadastro_obito, 0) = 0
       AND coalesce(cve.st_saida_cadastro_territorio, 0) = 0
