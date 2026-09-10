@@ -5,7 +5,7 @@ services:
     image: ghcr.io/gigiocalzavara/cbaityhy-agente-gestao:latest
     environment:
       NODE_ENV: production
-      APP_URL: https://${APP_DOMAIN}
+      APP_URL: https://${APP_DOMAIN}/gestao
 
       CBAITYHY_OPERATIONAL_SUPABASE_URL: ${CBAITYHY_OPERATIONAL_SUPABASE_URL}
       CBAITYHY_OPERATIONAL_SUPABASE_SECRET_KEY: ${CBAITYHY_OPERATIONAL_SUPABASE_SECRET_KEY}
@@ -44,17 +44,18 @@ services:
         failure_action: rollback
       labels:
         - traefik.enable=true
-        - traefik.docker.network=${TRAEFIK_NETWORK:-network_public}
-        - traefik.http.routers.cbaityhy-gestao.rule=Host(`${APP_DOMAIN}`)
+        - traefik.docker.network=${TRAEFIK_NETWORK:-azurranet}
+        - traefik.http.routers.cbaityhy-gestao.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/gestao`)
+        - traefik.http.routers.cbaityhy-gestao.priority=200
         - traefik.http.routers.cbaityhy-gestao.entrypoints=websecure
         - traefik.http.routers.cbaityhy-gestao.tls=true
         - traefik.http.routers.cbaityhy-gestao.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencryptresolver}
         - traefik.http.services.cbaityhy-gestao.loadbalancer.server.port=3000
-        - traefik.http.services.cbaityhy-gestao.loadbalancer.healthcheck.path=/api/health
+        - traefik.http.services.cbaityhy-gestao.loadbalancer.healthcheck.path=/gestao/api/health
         - traefik.http.services.cbaityhy-gestao.loadbalancer.healthcheck.interval=30s
         - traefik.http.services.cbaityhy-gestao.loadbalancer.healthcheck.timeout=5s
 
 networks:
   traefik_public:
     external: true
-    name: ${TRAEFIK_NETWORK:-network_public}
+    name: ${TRAEFIK_NETWORK:-azurranet}
