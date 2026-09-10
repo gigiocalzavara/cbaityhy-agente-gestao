@@ -6,7 +6,7 @@ WITH diabeticos_cadastrados AS (
     JOIN public.tb_fat_atendimento_individual fat ON fat.nu_cpf_cidadao = c.nu_cpf
     WHERE coalesce(cve.st_saida_cadastro_obito, 0) = 0
       AND coalesce(cve.st_saida_cadastro_territorio, 0) = 0
-      AND (fat.ds_filtro_ciaps LIKE '%|T89|%' OR fat.ds_filtro_ciaps LIKE '%|T90|%' OR fat.ds_filtro_cids LIKE '%E10%' OR fat.ds_filtro_cids LIKE '%E11%' OR fat.st_diabete = 1)
+      AND (fat.ds_filtro_ciaps LIKE '%|T89|%' OR fat.ds_filtro_ciaps LIKE '%|T90|%' OR fat.ds_filtro_cids LIKE '%E10%' OR fat.ds_filtro_cids LIKE '%E11%')
       AND c.nu_cpf IS NOT NULL
 ),
 hba1c_6m AS (
