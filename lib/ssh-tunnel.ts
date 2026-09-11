@@ -11,11 +11,21 @@ function fingerprint(key: Buffer) {
   return `SHA256:${crypto.createHash("sha256").update(key).digest("base64").replace(/=+$/, "")}`;
 }
 
+function normalizeSshHost(value: string) {
+  const host = value.trim();
+  if (!/^\d{12}$/.test(host)) return host;
+  const octets = host.match(/.{3}/g)?.map(Number) || [];
+  return octets.length === 4 && octets.every((octet) => octet <= 255)
+    ? octets.join(".")
+    : host;
+}
+
 export async function openSshForward(config:SshTunnelConfig, targetHost:string, targetPort:number) {
   const ssh = new SshClient();
+  const host = normalizeSshHost(config.host);
   const expected = config.hostFingerprint?.trim().replace(/=+$/, "") || "";
   const connectConfig:ConnectConfig = {
-    host:config.host, port:config.port, username:config.username, password:config.password,
+    host, port:config.port, username:config.username, password:config.password,
     readyTimeout:10_000, keepaliveInterval:10_000, keepaliveCountMax:3,
     hostVerifier: expected ? (key:Buffer) => fingerprint(key) === expected : undefined,
   };
