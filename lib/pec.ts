@@ -61,7 +61,15 @@ export async function executeReadOnlyQuery<T extends QueryResultRow = Record<str
     throw error;
   } finally {
     if (pooledClient) pooledClient.release();
-    else await sshClient?.end().catch(() => undefined);
-    await tunnel?.close();
+    else {
+      const ending = sshClient?.end().catch(() => undefined);
+      await tunnel?.close().catch(() => undefined);
+      if (ending) {
+        await Promise.race([
+          ending,
+          new Promise<void>((resolve) => setTimeout(resolve, 2_000)),
+        ]);
+      }
+    }
   }
 }
