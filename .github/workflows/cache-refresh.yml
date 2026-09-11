@@ -1,0 +1,23 @@
+name: Daily PEC Cache Refresh
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Refresh aggregated PEC cache
+        env:
+          CACHE_REFRESH_SECRET: ${{ secrets.CACHE_REFRESH_SECRET }}
+        run: |
+          test -n "$CACHE_REFRESH_SECRET"
+          curl --fail-with-body --silent --show-error \
+            --max-time 2400 \
+            -X POST \
+            -H "Authorization: Bearer $CACHE_REFRESH_SECRET" \
+            https://gestaosus.azurratech.com.br/api/internal/cache/refresh
+
