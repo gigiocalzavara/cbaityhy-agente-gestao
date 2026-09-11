@@ -24,6 +24,10 @@ export type ToolExecutionContext = {
 
 const tools = new Map((catalog.tools as ToolMeta[]).map((tool) => [tool.id, tool]));
 
+export function isHomologatedTool(toolId: string) {
+  return tools.has(toolId);
+}
+
 function sanitizeArguments(meta: ToolMeta, raw: Record<string, unknown>) {
   const values: unknown[] = [];
   const clean: Record<string, string | null> = {};
