@@ -3,6 +3,8 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { appPath } from "@/lib/base-path";
 import "./chat-markdown.css";
+import "./management-views.css";
+import { ManagementModule, type ManagementView } from "./management-views";
 
 type Identity = {
   email: string;
@@ -129,6 +131,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [activeSection, setActiveSection] = useState<"assistant" | ManagementView>("assistant");
 
   async function loadIdentity() {
     const response = await fetch(appPath("/api/auth/me"), { cache: "no-store" });
@@ -176,19 +179,20 @@ export default function Home() {
 
   const currentMunicipality = municipalities.find((item) => item.id === identity.municipalityId);
   const pecConnected = currentMunicipality?.pec?.last_test_status === "success";
+  const sectionTitles = { assistant: "Assistente de Gestão APS", overview: "Visão geral", indicators: "Indicadores", "active-search": "Busca ativa", territory: "Território" };
 
   return (
     <main className="app-shell">
       <aside className="sidebar">
         <div className="brand"><div className="brand-mark">C</div><div><strong>CBAItyhy</strong><span>Inteligência APS</span></div></div>
-        <button className="new-chat" onClick={() => setMessages([])}>+ Nova análise</button>
+        <button className="new-chat" onClick={() => { setMessages([]); setActiveSection("assistant"); }}>+ Nova análise</button>
         <nav>
           <span className="nav-label">GESTÃO</span>
-          <button className="nav-item active">Assistente IA</button>
-          <button className="nav-item" disabled>Visão geral</button>
-          <button className="nav-item" disabled>Indicadores</button>
-          <button className="nav-item" disabled>Busca ativa</button>
-          <button className="nav-item" disabled>Território</button>
+          <button className={`nav-item ${activeSection === "assistant" ? "active" : ""}`} onClick={() => setActiveSection("assistant")}>Assistente IA</button>
+          <button className={`nav-item ${activeSection === "overview" ? "active" : ""}`} onClick={() => setActiveSection("overview")}>Visão geral</button>
+          <button className={`nav-item ${activeSection === "indicators" ? "active" : ""}`} onClick={() => setActiveSection("indicators")}>Indicadores</button>
+          <button className={`nav-item ${activeSection === "active-search" ? "active" : ""}`} onClick={() => setActiveSection("active-search")}>Busca ativa</button>
+          <button className={`nav-item ${activeSection === "territory" ? "active" : ""}`} onClick={() => setActiveSection("territory")}>Território</button>
           {identity.role === "admin" && <a className="nav-item nav-link" href={appPath("/admin/municipios")}>Municípios / PEC</a>}
         </nav>
         <div className="sidebar-footer">
@@ -203,17 +207,17 @@ export default function Home() {
 
       <section className="chat-panel">
         <header className="topbar">
-          <div><strong>Assistente de Gestão APS</strong><span>{identity.municipalityName} · PEC + conhecimento normativo</span></div>
+          <div><strong>{sectionTitles[activeSection]}</strong><span>{identity.municipalityName} · PEC + conhecimento normativo</span></div>
           <div className="status-group"><span className="status"><i /> RAG conectado</span><span className={`status pec ${pecConnected ? "" : "offline"}`}><i /> {pecConnected ? "PEC conectado" : "PEC não validado"}</span></div>
         </header>
-        <div className="conversation">
+        {activeSection === "assistant" ? <><div className="conversation">
           {messages.length === 0 ? (
             <div className="welcome"><div className="welcome-icon">✦</div><h1>O que você quer analisar na APS?</h1><p>Converse com os dados do PEC de <strong>{identity.municipalityName}</strong> e com a base técnica da CBAItyhy. A conexão de dados é isolada por município.</p><div className="suggestions">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => void send(suggestion)}>{suggestion}</button>)}</div></div>
           ) : (
             <div className="messages">{messages.map((message, index) => <article className={`message ${message.role}`} key={`${message.role}-${index}`}><div className="avatar">{message.role === "user" ? "G" : "✦"}</div><div className="message-body"><div className="message-author">{message.role === "user" ? "Você" : "CBAItyhy IA"}</div><div className="message-content">{message.role === "assistant" ? <MarkdownMessage content={message.content} /> : message.content}</div>{message.presentation && <DataPresentation presentation={message.presentation} />}{message.sources && message.sources.length > 0 && <div className="sources"><span>Fontes consultadas</span>{message.sources.slice(0, 5).map((source) => source.url ? <a key={source.id} href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : <span className="source-chip" key={source.id}>{source.title}</span>)}</div>}</div></article>)}{loading && <article className="message assistant"><div className="avatar">✦</div><div className="message-body"><div className="thinking">Consultando dados e analisando evidências…</div></div></article>}</div>
           )}
         </div>
-        <div className="composer-wrap"><form className="composer" onSubmit={submit}><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (canSend) void send(); } }} placeholder={`Pergunte sobre ${identity.municipalityName}…`} rows={1} /><button type="submit" disabled={!canSend}>↑</button></form><small>Consultas assistenciais usam somente tools SQL homologadas e a conexão PEC do município ativo.</small></div>
+        <div className="composer-wrap"><form className="composer" onSubmit={submit}><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (canSend) void send(); } }} placeholder={`Pergunte sobre ${identity.municipalityName}…`} rows={1} /><button type="submit" disabled={!canSend}>↑</button></form><small>Consultas assistenciais usam somente tools SQL homologadas e a conexão PEC do município ativo.</small></div></> : <div className="module-scroll"><ManagementModule key={identity.municipalityId} view={activeSection} municipalityName={identity.municipalityName} nominalAccess={identity.nominalAccess} /></div>}
       </section>
     </main>
   );
