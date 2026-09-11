@@ -1,0 +1,96 @@
+.message-body {
+  min-width: 0;
+}
+
+.message-content {
+  overflow-wrap: anywhere;
+}
+
+.message.assistant .message-content {
+  white-space: normal;
+}
+
+.markdown-content {
+  display: grid;
+  gap: 13px;
+}
+
+.markdown-content p,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content ul {
+  margin: 0;
+}
+
+.markdown-content h3 {
+  margin-top: 9px;
+  color: #102d50;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.markdown-content h4 {
+  margin-top: 5px;
+  color: #173b64;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.markdown-content ul {
+  display: grid;
+  gap: 6px;
+  padding-left: 21px;
+}
+
+.markdown-content code {
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: #eaf0f6;
+  color: #23486f;
+  font-size: 0.9em;
+}
+
+.markdown-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid #dfe6ef;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.markdown-table {
+  min-width: 560px;
+  font-size: 12px;
+}
+
+.markdown-table th {
+  position: static;
+  background: #eef3f8;
+  color: #405873;
+}
+
+.markdown-table td,
+.markdown-table th {
+  white-space: normal;
+  vertical-align: top;
+}
+
+.markdown-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+@media (max-width: 820px) {
+  .message {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .markdown-content h3 {
+    font-size: 16px;
+  }
+}
