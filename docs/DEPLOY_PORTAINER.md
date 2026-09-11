@@ -146,6 +146,20 @@ Depois do deploy:
 - Use uma conta PostgreSQL do PEC exclusivamente READ ONLY.
 - Não publique a porta 3000 diretamente na internet; o acesso deve passar pelo Traefik.
 - `nominal_access=false` deve permanecer até a validação de auditoria e LGPD do fluxo nominal.
+
+## 11. Cache diário dos indicadores
+
+Antes do deploy, execute no Supabase Operacional:
+
+`supabase/operational/004_indicator_cache.sql`
+
+Adicione `CACHE_REFRESH_SECRET` à stack usando um segredo longo e aleatório. Cadastre o
+mesmo valor no GitHub Actions, em **Settings → Secrets and variables → Actions**, com o
+nome `CACHE_REFRESH_SECRET`. O workflow `Daily PEC Cache Refresh` executa diariamente
+às 05h no horário de Brasília e também pode ser disparado manualmente.
+
+Somente ferramentas agregadas são persistidas. Listas nominais de busca ativa nunca são
+gravadas no cache e continuam protegidas por perfil e por `nominal_access`.
 # Conexões PEC por túnel SSH
 
 Antes de publicar uma versão com suporte a SSH, execute no Supabase Operacional:
