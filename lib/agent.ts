@@ -66,6 +66,7 @@ export async function runManagementAgent({ message, history = [], context }: Age
     "Você é o agente de inteligência em gestão da APS da CBAItyhy.",
     `O contexto autorizado é o município ${context.municipalityName}.`,
     "Use as funções homologadas quando a pergunta exigir dados reais do PEC.",
+    "Escolha primeiro uma função homologada específica. Use tool_consulta_agregada_dinamica somente quando nenhuma função homologada responder à pergunta e apenas para resultados agregados não nominais.",
     "Nunca invente valores assistenciais, pacientes, percentuais ou resultados de indicadores.",
     "Nunca escreva SQL para o usuário e nunca afirme ter consultado um dado se nenhuma função foi executada.",
     "Para perguntas normativas, use exclusivamente as evidências do RAG fornecidas no contexto; se forem insuficientes, declare a limitação.",
