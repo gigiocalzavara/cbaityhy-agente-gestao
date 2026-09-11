@@ -33,11 +33,24 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const password = String(body.password || "");
     const port = Number(body.port || 5432);
     const sslEnabled = body.sslEnabled !== false;
+    const sshEnabled = body.sshEnabled === true;
+    const sshHost = String(body.sshHost || "").trim();
+    const sshPort = Number(body.sshPort || 22);
+    const sshUsername = String(body.sshUsername || "").trim();
+    const sshPassword = String(body.sshPassword || "");
+    const sshHostFingerprint = String(body.sshHostFingerprint || "").trim() || null;
     const passwordChanged = Boolean(password);
+    const sshPasswordChanged = Boolean(sshPassword);
     if (!host || !databaseName || !username || !Number.isInteger(port) || port < 1 || port > 65535) {
       return NextResponse.json({ message: "Host, porta, banco e usuário são obrigatórios." }, { status: 400 });
     }
-    await savePecConnection({ municipalityId: id, host, port, databaseName, username, password, sslEnabled }, passwordChanged);
+    if (sshEnabled && (!sshHost || !sshUsername || !Number.isInteger(sshPort) || sshPort < 1 || sshPort > 65535)) {
+      return NextResponse.json({ message: "Host, porta e usuário SSH são obrigatórios quando o túnel está ativo." }, { status: 400 });
+    }
+    if (sshHostFingerprint && !/^SHA256:[A-Za-z0-9+/]+={0,2}$/.test(sshHostFingerprint)) {
+      return NextResponse.json({ message: "Fingerprint SSH inválida. Use o formato SHA256:base64." }, { status: 400 });
+    }
+    await savePecConnection({ municipalityId: id, host, port, databaseName, username, password, sslEnabled, sshEnabled, sshHost, sshPort, sshUsername, sshPassword, sshHostFingerprint }, passwordChanged, sshPasswordChanged);
     await invalidateMunicipalityPool(id);
     return NextResponse.json({ ok: true, connection: await getPecConnectionSummary(id) });
   } catch (error) {
