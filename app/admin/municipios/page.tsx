@@ -40,6 +40,7 @@ export default function MunicipalitiesAdminPage() {
   const [message, setMessage] = useState("");
   const [creating, setCreating] = useState(false);
   const [validating, setValidating] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [validation, setValidation] = useState<ValidationReport | null>(null);
   const [form, setForm] = useState({ host: "", port: "5432", databaseName: "", username: "", password: "", sslEnabled: true, sshEnabled:false, sshHost:"", sshPort:"22", sshUsername:"", sshPassword:"", sshHostFingerprint:"" });
   const [newMunicipality, setNewMunicipality] = useState({ name: "", ibgeCode: "", stateCode: "PB" });
@@ -102,12 +103,23 @@ export default function MunicipalitiesAdminPage() {
 
   async function testConnection() {
     if (!selected) return;
+    setTesting(true);
     setMessage("Salvando e testando conexão READ ONLY com o PEC…");
-    if (!await persistConnection()) return;
-    const response = await fetch(appPath(`/api/municipalities/${selected.id}/connection`), { method: "POST" });
-    const data = await response.json();
-    setMessage(response.ok ? `Conectado com sucesso ao banco ${data.details?.database_name || "PEC"}${data.transport === "ssh_tunnel" ? " pelo túnel SSH" : ""}.` : data.message || "Falha na conexão.");
-    await load();
+    try {
+      const response = await fetch(appPath(`/api/municipalities/${selected.id}/connection?test=1`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, port: Number(form.port), sshPort:Number(form.sshPort) }),
+      });
+      const data = await response.json();
+      setForm((current) => ({ ...current, password: "", sshPassword:"" }));
+      setMessage(response.ok ? `Conectado com sucesso ao banco ${data.details?.database_name || "PEC"}${data.transport === "ssh_tunnel" ? " pelo túnel SSH" : ""}.` : data.message || "Falha na conexão.");
+      await load();
+    } catch {
+      setMessage("Não foi possível concluir o teste de conexão.");
+    } finally {
+      setTesting(false);
+    }
   }
 
   async function validateQueries() {
@@ -200,7 +212,8 @@ export default function MunicipalitiesAdminPage() {
                 <label>Fingerprint <span className="optional-label">opcional</span><input value={form.sshHostFingerprint} onChange={(e) => setForm({ ...form, sshHostFingerprint:e.target.value })} placeholder="SHA256:..." /></label>
               </div></>}
               {selected.pec?.last_test_at && <div className="test-info"><strong>Último teste:</strong> {new Date(selected.pec.last_test_at).toLocaleString("pt-BR")}{selected.pec.last_error ? <span>{selected.pec.last_error}</span> : null}</div>}
-              <div className="connection-actions"><button className="secondary-button" type="button" onClick={testConnection}>Salvar e testar conexão</button><button className="secondary-button" type="button" onClick={validateQueries} disabled={validating || selected.pec?.last_test_status !== "success"}>{validating ? "Validando…" : "Validar consultas"}</button><button className="primary-button" type="submit">Salvar configuração</button></div>
+              <div className="connection-actions"><button className="secondary-button" type="button" onClick={testConnection} disabled={testing}>{testing ? "Testando conexão…" : "Salvar e testar conexão"}</button><button className="secondary-button" type="button" onClick={validateQueries} disabled={validating || testing || selected.pec?.last_test_status !== "success"}>{validating ? "Validando…" : "Validar consultas"}</button><button className="primary-button" type="submit" disabled={testing}>Salvar configuração</button></div>
+              {message && selected ? <div className="test-feedback" role="status">{message}</div> : null}
               {validation && <div className={`validation-report ${validation.compatible ? "compatible" : "error"}`}>
                 <strong>{validation.compatible ? `${validation.results.length} consultas compatíveis` : "Compatibilidade parcial"}</strong>
                 <span>Verificado em {new Date(validation.checkedAt).toLocaleString("pt-BR")}</span>
