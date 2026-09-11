@@ -28,7 +28,7 @@ async function callResponses(payload: Record<string, unknown>) {
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error("OpenAI ${response.status}: ${await response.text()}`);
+  if (!response.ok) throw new Error(`OpenAI ${response.status}: ${await response.text()}`);
   return response.json();
 }
 
