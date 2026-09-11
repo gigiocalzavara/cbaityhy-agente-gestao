@@ -61,6 +61,17 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     }
     await savePecConnection({ municipalityId: id, host, port, databaseName, username, password, sslEnabled, sshEnabled, sshHost, sshPort, sshUsername, sshPassword, sshHostFingerprint }, passwordChanged, sshPasswordChanged);
     await invalidateMunicipalityPool(id);
+    if (new URL(request.url).searchParams.get("test") === "1") {
+      try {
+        const result = await testPecConnection(await getPecConnection(id));
+        await updatePecTestStatus(id, true);
+        return NextResponse.json({ ...result, tested: true });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Falha ao testar conexão.";
+        await updatePecTestStatus(id, false, message).catch(() => undefined);
+        return NextResponse.json({ ok: false, tested: true, message }, { status: 502 });
+      }
+    }
     return NextResponse.json({ ok: true, connection: await getPecConnectionSummary(id) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha ao salvar conexão.";
