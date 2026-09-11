@@ -10,7 +10,7 @@ export async function POST(_request: NextRequest, context: { params: Promise<{ i
     }
 
     const { id } = await context.params;
-    const municipalities = await listAccessibleMunicipalities();
+    const { municipalities } = await listAccessibleMunicipalities();
     if (!municipalities.some((item) => item.id === id)) {
       return NextResponse.json({ message: "Município não autorizado." }, { status: 403 });
     }
