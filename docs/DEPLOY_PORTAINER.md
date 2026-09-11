@@ -146,3 +146,10 @@ Depois do deploy:
 - Use uma conta PostgreSQL do PEC exclusivamente READ ONLY.
 - Não publique a porta 3000 diretamente na internet; o acesso deve passar pelo Traefik.
 - `nominal_access=false` deve permanecer até a validação de auditoria e LGPD do fluxo nominal.
+# Conexões PEC por túnel SSH
+
+Antes de publicar uma versão com suporte a SSH, execute no Supabase Operacional:
+
+`supabase/operational/003_pec_ssh_tunnel.sql`
+
+O container precisa conseguir sair para o IP e porta SSH do município. O firewall remoto deve liberar o IP público da VPS. Use preferencialmente um usuário SSH dedicado e um usuário PostgreSQL somente leitura. O fingerprint `SHA256` do host é opcional na primeira configuração e recomendado antes de colocar a integração em produção.
