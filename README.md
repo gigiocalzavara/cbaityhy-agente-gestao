@@ -55,7 +55,9 @@ Já estão implementados:
 - Cada consulta roda em `BEGIN READ ONLY` com `statement_timeout`.
 - Parâmetros são normalizados pelo backend antes da execução.
 - CPF e CNS são mascarados antes de sair da camada de tool.
-- Tools nominais exigem `nominal_access=true` e perfil autorizado.
+- Tools nominais exigem `nominal_access=true` e perfil autorizado. Quando autorizadas,
+  as listas de busca ativa exibem os identificadores completos necessários ao trabalho
+  da gestão; resultados agregados continuam protegidos contra exposição acidental.
 - Organização e município vêm da sessão autenticada, não do prompt do usuário.
 - A secret key do Supabase permanece exclusivamente server-side.
 
