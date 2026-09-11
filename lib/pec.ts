@@ -1,6 +1,7 @@
 import "server-only";
-import { Pool, type QueryResultRow } from "pg";
+import { Client, Pool, type QueryResultRow } from "pg";
 import { getPecConnection } from "@/lib/pec-connections";
+import { openSshForward } from "@/lib/ssh-tunnel";
 
 const pools = new Map<string, Pool>();
 
@@ -38,7 +39,15 @@ export async function executeReadOnlyQuery<T extends QueryResultRow = Record<str
   sql: string,
   values: unknown[] = [],
 ) {
-  const client = await (await getPool(municipalityId)).connect();
+  const config = await getPecConnection(municipalityId);
+  const tunnel = config.sshEnabled ? await openSshForward({ host:config.sshHost, port:config.sshPort, username:config.sshUsername, password:config.sshPassword, hostFingerprint:config.sshHostFingerprint },config.host,config.port) : null;
+  const sshClient = tunnel ? new Client({ database:config.databaseName, user:config.username, password:config.password, ssl:config.sslEnabled ? { rejectUnauthorized:false } : false, connectionTimeoutMillis:10_000, stream:()=>tunnel.stream }) : null;
+  if (sshClient) {
+    try { await sshClient.connect(); }
+    catch (error) { await tunnel?.close(); throw error; }
+  }
+  const pooledClient = sshClient ? null : await (await getPool(municipalityId)).connect();
+  const client = sshClient || pooledClient!;
   const timeout = Math.max(1000, Math.min(Number(process.env.PEC_PG_STATEMENT_TIMEOUT_MS || 8000), 15000));
 
   try {
@@ -51,6 +60,8 @@ export async function executeReadOnlyQuery<T extends QueryResultRow = Record<str
     try { await client.query("ROLLBACK"); } catch {}
     throw error;
   } finally {
-    client.release();
+    if (pooledClient) pooledClient.release();
+    else await sshClient?.end().catch(() => undefined);
+    await tunnel?.close();
   }
 }
