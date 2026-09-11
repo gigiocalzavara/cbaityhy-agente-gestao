@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { appPath } from "@/lib/base-path";
 import { getOfficialIndicators, type IndicatorGroup, type OfficialIndicator } from "@/lib/official-indicators";
 
@@ -13,6 +13,7 @@ type ToolResult = {
   chart: boolean;
   rowCount: number;
   rows: Record<string, unknown>[];
+  cache?: { hit: boolean; generatedAt: string; stale: boolean };
 };
 
 type Props = {
@@ -54,7 +55,7 @@ async function requestTool(toolId: string, parameters: Record<string, string | n
 function ResultTable({ result }: { result: ToolResult }) {
   if (!result.rows.length) return <div className="module-empty compact"><strong>Nenhum registro encontrado</strong><span>A consulta foi executada, mas não retornou dados para os filtros atuais.</span></div>;
   const columns = Object.keys(result.rows[0]);
-  return <div className="module-result"><div className="module-result-head"><span>{result.nominal ? "Resultado nominal protegido" : "Resultado agregado"}</span><span>{result.rowCount} {result.rowCount === 1 ? "linha" : "linhas"}</span></div><div className="module-table-wrap"><table><thead><tr>{columns.map((column) => <th key={column}>{column.replaceAll("_", " ")}</th>)}</tr></thead><tbody>{result.rows.map((row, rowIndex) => <tr key={rowIndex}>{columns.map((column) => <td key={column}>{pretty(row[column])}</td>)}</tr>)}</tbody></table></div></div>;
+  return <div className="module-result"><div className="module-result-head"><span>{result.nominal ? "Resultado nominal protegido" : "Resultado agregado"}{result.cache?.hit ? ` · Atualizado em ${new Date(result.cache.generatedAt).toLocaleString("pt-BR")}${result.cache.stale ? " · última versão disponível" : ""}` : ""}</span><span>{result.rowCount} {result.rowCount === 1 ? "linha" : "linhas"}</span></div><div className="module-table-wrap"><table><thead><tr>{columns.map((column) => <th key={column}>{column.replaceAll("_", " ")}</th>)}</tr></thead><tbody>{result.rows.map((row, rowIndex) => <tr key={rowIndex}>{columns.map((column) => <td key={column}>{pretty(row[column])}</td>)}</tr>)}</tbody></table></div></div>;
 }
 
 function ModuleHeader({ eyebrow, title, description, municipalityName }: { eyebrow: string; title: string; description: string; municipalityName: string }) {
@@ -134,6 +135,13 @@ function Indicators({ municipalityName }: { municipalityName: string }) {
   const groupTitle = indicatorGroups.find((item) => item.id === group)?.title || "Indicadores";
   const weights = selectedIndicator.weights || [];
   const formula = selectedIndicator.formula || (selectedIndicator.id === "C1" ? "Programados ÷ (programados + espontâneos) × 100." : "Média da pontuação individual das boas práticas por equipe.");
+  useEffect(() => {
+    const alert = document.querySelector<HTMLElement>(".methodology-alert");
+    const title = alert?.querySelector("strong");
+    const description = alert?.querySelector("span");
+    if (title) title.textContent = "Prévia local conectada";
+    if (description) description.textContent = `Os dados abaixo são calculados no PEC de ${municipalityName}. Compare competência, denominador e resultado por INE com o painel federal antes de tratá-los como valores oficiais.`;
+  }, [municipalityName, group]);
   return <div className="module-page"><ModuleHeader eyebrow="INDICADORES FEDERAIS · PRÉVIA LOCAL" title={groupTitle} description="Estrutura baseada nas notas metodológicas do Ministério da Saúde. Até a conciliação com o SIAPS, os resultados são estimativas gerenciais, não valores oficiais." municipalityName={municipalityName} /><nav className="indicator-tabs">{indicatorGroups.map((item) => <button key={item.id} className={group === item.id ? "active" : ""} onClick={() => changeGroup(item.id)}>{item.label}</button>)}</nav><div className="methodology-alert"><strong>Validação pendente</strong><span>Use um município real para conferir competência, denominador e resultado por INE no painel federal.</span></div><div className="indicator-grid">{indicatorTools.map((item) => <button className={`indicator-card ${item.color} ${selected === item.id ? "selected" : ""}`} key={item.id} onClick={() => void run(item)} disabled={loading}><span className="indicator-code">{item.id}</span><span className="indicator-status">{item.status === "schema_pending" ? "Estrutura pendente" : "Prévia parcial"}</span><strong>{item.title}</strong><small>{item.description}</small><em>{item.toolId ? "Ver prévia disponível →" : "Ver metodologia →"}</em></button>)}</div><section className="practice-panel"><header><div><span>{selectedIndicator.id}</span><strong>{selectedIndicator.title}</strong></div><small>{weights.length ? "Pontuação máxima: 100" : selectedIndicator.unit || "Indicador"}</small></header>{weights.length ? <div className="practice-grid">{weights.map((practice) => <article key={practice.code}><span>{practice.code}</span><p>{practice.label}</p><strong>{practice.points} pts</strong></article>)}</div> : <div className="formula-detail"><p>{formula}</p>{selectedIndicator.ranges && <small>{selectedIndicator.ranges}</small>}<span>Dados necessários: {selectedIndicator.requiredDomains.join(" · ")}</span></div>}</section>{loading && <div className="module-loading">Consultando a prévia local no PEC…</div>}{error && <div className="module-alert">{error}</div>}{result && <ResultTable result={result} />}</div>;
 }
 
