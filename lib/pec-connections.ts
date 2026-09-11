@@ -2,6 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import { Client } from "pg";
 import { operationalFetch } from "@/lib/operational-supabase";
+import { openSshForward } from "@/lib/ssh-tunnel";
 
 export type PecConnectionConfig = {
   municipalityId: string;
@@ -11,6 +12,12 @@ export type PecConnectionConfig = {
   username: string;
   password: string;
   sslEnabled: boolean;
+  sshEnabled: boolean;
+  sshHost: string;
+  sshPort: number;
+  sshUsername: string;
+  sshPassword: string;
+  sshHostFingerprint?: string | null;
 };
 
 type StoredConnection = {
@@ -21,6 +28,12 @@ type StoredConnection = {
   username: string;
   password_encrypted: string;
   ssl_enabled: boolean;
+  ssh_enabled?: boolean;
+  ssh_host?: string | null;
+  ssh_port?: number | null;
+  ssh_username?: string | null;
+  ssh_password_encrypted?: string | null;
+  ssh_host_fingerprint?: string | null;
   active: boolean;
   last_test_at?: string | null;
   last_test_status?: "success" | "error" | null;
@@ -65,18 +78,25 @@ export async function getPecConnection(municipalityId: string): Promise<PecConne
     username: row.username,
     password: decryptSecret(row.password_encrypted),
     sslEnabled: row.ssl_enabled,
+    sshEnabled: row.ssh_enabled === true,
+    sshHost: row.ssh_host || "",
+    sshPort: row.ssh_port || 22,
+    sshUsername: row.ssh_username || "",
+    sshPassword: row.ssh_password_encrypted ? decryptSecret(row.ssh_password_encrypted) : "",
+    sshHostFingerprint: row.ssh_host_fingerprint,
   };
 }
 
 export async function getPecConnectionSummary(municipalityId: string) {
-  const response = await operationalFetch(`/rest/v1/aps_agent_municipality_connections?select=municipality_id,host,port,database_name,username,ssl_enabled,active,last_test_at,last_test_status,last_error&municipality_id=eq.${encodeURIComponent(municipalityId)}&limit=1`);
+  const response = await operationalFetch(`/rest/v1/aps_agent_municipality_connections?select=municipality_id,host,port,database_name,username,ssl_enabled,ssh_enabled,ssh_host,ssh_port,ssh_username,ssh_host_fingerprint,active,last_test_at,last_test_status,last_error&municipality_id=eq.${encodeURIComponent(municipalityId)}&limit=1`);
   if (!response.ok) throw new Error(`Falha ao carregar conexão PEC: ${response.status}`);
   const rows = await response.json();
   return rows[0] || null;
 }
 
-export async function savePecConnection(input: PecConnectionConfig, passwordChanged = true) {
+export async function savePecConnection(input: PecConnectionConfig, passwordChanged = true, sshPasswordChanged = true) {
   let encryptedPassword: string;
+  let encryptedSshPassword: string | null = null;
   if (passwordChanged) {
     if (!input.password) throw new Error("Senha do PostgreSQL é obrigatória.");
     encryptedPassword = encryptSecret(input.password);
@@ -86,6 +106,19 @@ export async function savePecConnection(input: PecConnectionConfig, passwordChan
     const rows = await existing.json();
     if (!rows[0]?.password_encrypted) throw new Error("Senha do PostgreSQL é obrigatória.");
     encryptedPassword = rows[0].password_encrypted;
+  }
+
+  if (input.sshEnabled) {
+    if (sshPasswordChanged) {
+      if (!input.sshPassword) throw new Error("Senha SSH é obrigatória.");
+      encryptedSshPassword = encryptSecret(input.sshPassword);
+    } else {
+      const existing = await operationalFetch(`/rest/v1/aps_agent_municipality_connections?select=ssh_password_encrypted&municipality_id=eq.${encodeURIComponent(input.municipalityId)}&limit=1`);
+      if (!existing.ok) throw new Error("Falha ao carregar credencial SSH existente.");
+      const rows = await existing.json();
+      if (!rows[0]?.ssh_password_encrypted) throw new Error("Senha SSH é obrigatória.");
+      encryptedSshPassword = rows[0].ssh_password_encrypted;
+    }
   }
 
   const response = await operationalFetch(`/rest/v1/aps_agent_municipality_connections?on_conflict=municipality_id`, {
@@ -99,6 +132,12 @@ export async function savePecConnection(input: PecConnectionConfig, passwordChan
       username: input.username,
       password_encrypted: encryptedPassword,
       ssl_enabled: input.sslEnabled,
+      ssh_enabled: input.sshEnabled,
+      ssh_host: input.sshEnabled ? input.sshHost : null,
+      ssh_port: input.sshEnabled ? input.sshPort : null,
+      ssh_username: input.sshEnabled ? input.sshUsername : null,
+      ssh_password_encrypted: encryptedSshPassword,
+      ssh_host_fingerprint: input.sshEnabled ? input.sshHostFingerprint || null : null,
       active: true,
       updated_at: new Date().toISOString(),
     }),
@@ -107,14 +146,16 @@ export async function savePecConnection(input: PecConnectionConfig, passwordChan
 }
 
 export async function testPecConnection(config: PecConnectionConfig) {
+  const tunnel = config.sshEnabled ? await openSshForward({ host:config.sshHost, port:config.sshPort, username:config.sshUsername, password:config.sshPassword, hostFingerprint:config.sshHostFingerprint },config.host,config.port) : null;
   const client = new Client({
-    host: config.host,
-    port: config.port,
+    host: tunnel ? undefined : config.host,
+    port: tunnel ? undefined : config.port,
     database: config.databaseName,
     user: config.username,
     password: config.password,
     connectionTimeoutMillis: 7000,
     ssl: config.sslEnabled ? { rejectUnauthorized: false } : false,
+    stream: tunnel ? () => tunnel.stream : undefined,
   });
   try {
     await client.connect();
@@ -122,9 +163,13 @@ export async function testPecConnection(config: PecConnectionConfig) {
     await client.query("SET LOCAL statement_timeout = '5000ms'");
     const result = await client.query("select current_database() as database_name, current_user as username, now() as checked_at");
     await client.query("ROLLBACK");
-    return { ok: true, details: result.rows[0] };
+    return { ok: true, transport:config.sshEnabled ? "ssh_tunnel" : "direct", details: result.rows[0] };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Falha desconhecida";
+    throw new Error(`${config.sshEnabled ? "POSTGRES_OVER_SSH_FAILED" : "POSTGRES_CONNECTION_FAILED"}: ${message}`);
   } finally {
     await client.end().catch(() => undefined);
+    await tunnel?.close();
   }
 }
 
