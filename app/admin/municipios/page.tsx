@@ -22,12 +22,20 @@ type Municipality = {
   } | null;
 };
 
+type ValidationReport = {
+  compatible: boolean;
+  checkedAt: string;
+  results: { id: string; status: "compatible" | "error"; error: string | null }[];
+};
+
 export default function MunicipalitiesAdminPage() {
   const [items, setItems] = useState<Municipality[]>([]);
   const [selected, setSelected] = useState<Municipality | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [creating, setCreating] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validation, setValidation] = useState<ValidationReport | null>(null);
   const [form, setForm] = useState({ host: "", port: "5432", databaseName: "", username: "", password: "", sslEnabled: true });
   const [newMunicipality, setNewMunicipality] = useState({ name: "", ibgeCode: "", stateCode: "PB" });
 
@@ -36,7 +44,9 @@ export default function MunicipalitiesAdminPage() {
     const response = await fetch(appPath("/api/municipalities"), { cache: "no-store" });
     if (response.status === 401) { window.location.href = appPath("/login"); return; }
     const data = await response.json();
-    setItems(Array.isArray(data) ? data : []);
+    const nextItems = Array.isArray(data) ? data : [];
+    setItems(nextItems);
+    setSelected((current) => current ? nextItems.find((item) => item.id === current.id) || current : null);
     setLoading(false);
   }
 
@@ -45,6 +55,7 @@ export default function MunicipalitiesAdminPage() {
   function edit(item: Municipality) {
     setSelected(item);
     setMessage("");
+    setValidation(null);
     setForm({
       host: item.pec?.host || "",
       port: String(item.pec?.port || 5432),
@@ -55,27 +66,58 @@ export default function MunicipalitiesAdminPage() {
     });
   }
 
-  async function saveConnection(event: FormEvent) {
-    event.preventDefault();
+  async function persistConnection() {
     if (!selected) return;
-    setMessage("Salvando conexão…");
     const response = await fetch(appPath(`/api/municipalities/${selected.id}/connection`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, port: Number(form.port) }),
     });
     const data = await response.json();
-    setMessage(response.ok ? "Conexão salva com segurança." : data.message || "Falha ao salvar.");
-    if (response.ok) { setForm((current) => ({ ...current, password: "" })); await load(); }
+    if (!response.ok) {
+      setMessage(data.message || "Falha ao salvar.");
+      return false;
+    }
+    setForm((current) => ({ ...current, password: "" }));
+    await load();
+    return true;
+  }
+
+  async function saveConnection(event: FormEvent) {
+    event.preventDefault();
+    setMessage("Salvando conexão…");
+    if (await persistConnection()) setMessage("Conexão salva com segurança.");
   }
 
   async function testConnection() {
     if (!selected) return;
-    setMessage("Testando conexão READ ONLY com o PEC…");
+    setMessage("Salvando e testando conexão READ ONLY com o PEC…");
+    if (!await persistConnection()) return;
     const response = await fetch(appPath(`/api/municipalities/${selected.id}/connection`), { method: "POST" });
     const data = await response.json();
     setMessage(response.ok ? `Conectado com sucesso ao banco ${data.details?.database_name || "PEC"}.` : data.message || "Falha na conexão.");
     await load();
+  }
+
+  async function validateQueries() {
+    if (!selected) return;
+    setValidating(true);
+    setValidation(null);
+    setMessage("Validando as consultas homologadas sem acessar dados de pacientes…");
+    try {
+      const response = await fetch(appPath(`/api/municipalities/${selected.id}/validate`), { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.message || "Falha ao validar consultas.");
+      } else {
+        setValidation(data);
+        setMessage(data.compatible ? "Todas as consultas são compatíveis com este PEC." : "Foram encontradas consultas incompatíveis.");
+      }
+    } catch {
+      setMessage("Não foi possível comunicar com o servidor para validar as consultas.");
+    } finally {
+      setValidating(false);
+    }
   }
 
   async function createMunicipality(event: FormEvent) {
@@ -139,7 +181,12 @@ export default function MunicipalitiesAdminPage() {
                 <label className="check-label"><input type="checkbox" checked={form.sslEnabled} onChange={(e) => setForm({ ...form, sslEnabled: e.target.checked })} /> Usar SSL</label>
               </div>
               {selected.pec?.last_test_at && <div className="test-info"><strong>Último teste:</strong> {new Date(selected.pec.last_test_at).toLocaleString("pt-BR")}{selected.pec.last_error ? <span>{selected.pec.last_error}</span> : null}</div>}
-              <div className="connection-actions"><button className="secondary-button" type="button" onClick={testConnection}>Testar conexão</button><button className="primary-button" type="submit">Salvar configuração</button></div>
+              <div className="connection-actions"><button className="secondary-button" type="button" onClick={testConnection}>Salvar e testar conexão</button><button className="secondary-button" type="button" onClick={validateQueries} disabled={validating || selected.pec?.last_test_status !== "success"}>{validating ? "Validando…" : "Validar consultas"}</button><button className="primary-button" type="submit">Salvar configuração</button></div>
+              {validation && <div className={`validation-report ${validation.compatible ? "compatible" : "error"}`}>
+                <strong>{validation.compatible ? `${validation.results.length} consultas compatíveis` : "Compatibilidade parcial"}</strong>
+                <span>Verificado em {new Date(validation.checkedAt).toLocaleString("pt-BR")}</span>
+                <ul>{validation.results.map((result) => <li key={result.id}><span>{result.status === "compatible" ? "✓" : "✕"} {result.id.replace("tool_", "").replaceAll("_", " ")}</span>{result.error && <small>{result.error}</small>}</li>)}</ul>
+              </div>}
               <small className="security-note">A senha é criptografada no servidor antes de ser armazenada no Supabase Operacional e nunca é devolvida ao navegador.</small>
             </form>
           )}
