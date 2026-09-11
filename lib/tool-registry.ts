@@ -114,7 +114,7 @@ export async function executeTool(toolId: string, rawArguments: Record<string, u
   if (meta.nominal && (!context.nominalAccess || !["admin", "manager", "municipal_manager", "coordinator"].includes(context.role))) throw new Error("FORBIDDEN_NOMINAL");
   const { clean, values } = sanitizeArguments(meta, rawArguments);
   const sql = await readFile(path.join(process.cwd(), meta.sql), "utf8");
-  const rows = await executeReadOnlyQuery(context.municipalityId, sql, values);
+  const rows = await executeReadOnlyQuery(context.municipalityId, sql, values, { timeoutMs: 30_000 });
   const max = meta.nominal ? Number(process.env.DEFAULT_RESULT_LIMIT || 15) : 250;
   const limited = rows.slice(0, Math.max(1, Math.min(max, 500))).map(maskSensitiveRow);
   return { toolId, kind: meta.kind, nominal: meta.nominal, chart: meta.chart, parameters: clean, rowCount: limited.length, rows: limited };
