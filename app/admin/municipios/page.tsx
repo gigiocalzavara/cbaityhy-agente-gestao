@@ -15,6 +15,11 @@ type Municipality = {
     database_name: string;
     username: string;
     ssl_enabled: boolean;
+    ssh_enabled?: boolean;
+    ssh_host?: string | null;
+    ssh_port?: number | null;
+    ssh_username?: string | null;
+    ssh_host_fingerprint?: string | null;
     active: boolean;
     last_test_at?: string | null;
     last_test_status?: "success" | "error" | null;
@@ -36,7 +41,7 @@ export default function MunicipalitiesAdminPage() {
   const [creating, setCreating] = useState(false);
   const [validating, setValidating] = useState(false);
   const [validation, setValidation] = useState<ValidationReport | null>(null);
-  const [form, setForm] = useState({ host: "", port: "5432", databaseName: "", username: "", password: "", sslEnabled: true });
+  const [form, setForm] = useState({ host: "", port: "5432", databaseName: "", username: "", password: "", sslEnabled: true, sshEnabled:false, sshHost:"", sshPort:"22", sshUsername:"", sshPassword:"", sshHostFingerprint:"" });
   const [newMunicipality, setNewMunicipality] = useState({ name: "", ibgeCode: "", stateCode: "PB" });
 
   async function load() {
@@ -63,6 +68,12 @@ export default function MunicipalitiesAdminPage() {
       username: item.pec?.username || "",
       password: "",
       sslEnabled: item.pec?.ssl_enabled !== false,
+      sshEnabled: item.pec?.ssh_enabled === true,
+      sshHost: item.pec?.ssh_host || "",
+      sshPort: String(item.pec?.ssh_port || 22),
+      sshUsername: item.pec?.ssh_username || "",
+      sshPassword: "",
+      sshHostFingerprint: item.pec?.ssh_host_fingerprint || "",
     });
   }
 
@@ -71,14 +82,14 @@ export default function MunicipalitiesAdminPage() {
     const response = await fetch(appPath(`/api/municipalities/${selected.id}/connection`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, port: Number(form.port) }),
+      body: JSON.stringify({ ...form, port: Number(form.port), sshPort:Number(form.sshPort) }),
     });
     const data = await response.json();
     if (!response.ok) {
       setMessage(data.message || "Falha ao salvar.");
       return false;
     }
-    setForm((current) => ({ ...current, password: "" }));
+    setForm((current) => ({ ...current, password: "", sshPassword:"" }));
     await load();
     return true;
   }
@@ -95,7 +106,7 @@ export default function MunicipalitiesAdminPage() {
     if (!await persistConnection()) return;
     const response = await fetch(appPath(`/api/municipalities/${selected.id}/connection`), { method: "POST" });
     const data = await response.json();
-    setMessage(response.ok ? `Conectado com sucesso ao banco ${data.details?.database_name || "PEC"}.` : data.message || "Falha na conexão.");
+    setMessage(response.ok ? `Conectado com sucesso ao banco ${data.details?.database_name || "PEC"}${data.transport === "ssh_tunnel" ? " pelo túnel SSH" : ""}.` : data.message || "Falha na conexão.");
     await load();
   }
 
@@ -180,6 +191,14 @@ export default function MunicipalitiesAdminPage() {
                 <label>Senha<input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={selected.pec ? "•••••••• (deixe vazio para manter)" : "Senha do usuário PostgreSQL"} /></label>
                 <label className="check-label"><input type="checkbox" checked={form.sslEnabled} onChange={(e) => setForm({ ...form, sslEnabled: e.target.checked })} /> Usar SSL</label>
               </div>
+              <div className="ssh-toggle"><label className="check-label"><input type="checkbox" checked={form.sshEnabled} onChange={(e) => setForm({ ...form, sshEnabled:e.target.checked })} /> Conectar por túnel SSH</label><small>Use quando o PostgreSQL só estiver acessível a partir de um servidor intermediário.</small></div>
+              {form.sshEnabled && <><h3>Servidor SSH</h3><div className="form-grid">
+                <label className="wide">Host SSH<input value={form.sshHost} onChange={(e) => setForm({ ...form, sshHost:e.target.value })} placeholder="IP ou domínio do servidor SSH" required /></label>
+                <label>Porta SSH<input type="number" min="1" max="65535" value={form.sshPort} onChange={(e) => setForm({ ...form, sshPort:e.target.value })} required /></label>
+                <label>Usuário SSH<input value={form.sshUsername} onChange={(e) => setForm({ ...form, sshUsername:e.target.value })} required /></label>
+                <label>Senha SSH<input type="password" value={form.sshPassword} onChange={(e) => setForm({ ...form, sshPassword:e.target.value })} placeholder={selected.pec?.ssh_enabled ? "•••••••• (deixe vazio para manter)" : "Senha do usuário SSH"} /></label>
+                <label>Fingerprint <span className="optional-label">opcional</span><input value={form.sshHostFingerprint} onChange={(e) => setForm({ ...form, sshHostFingerprint:e.target.value })} placeholder="SHA256:..." /></label>
+              </div></>}
               {selected.pec?.last_test_at && <div className="test-info"><strong>Último teste:</strong> {new Date(selected.pec.last_test_at).toLocaleString("pt-BR")}{selected.pec.last_error ? <span>{selected.pec.last_error}</span> : null}</div>}
               <div className="connection-actions"><button className="secondary-button" type="button" onClick={testConnection}>Salvar e testar conexão</button><button className="secondary-button" type="button" onClick={validateQueries} disabled={validating || selected.pec?.last_test_status !== "success"}>{validating ? "Validando…" : "Validar consultas"}</button><button className="primary-button" type="submit">Salvar configuração</button></div>
               {validation && <div className={`validation-report ${validation.compatible ? "compatible" : "error"}`}>
@@ -187,7 +206,7 @@ export default function MunicipalitiesAdminPage() {
                 <span>Verificado em {new Date(validation.checkedAt).toLocaleString("pt-BR")}</span>
                 <ul>{validation.results.map((result) => <li key={result.id}><span>{result.status === "compatible" ? "✓" : "✕"} {result.id.replace("tool_", "").replaceAll("_", " ")}</span>{result.error && <small>{result.error}</small>}</li>)}</ul>
               </div>}
-              <small className="security-note">A senha é criptografada no servidor antes de ser armazenada no Supabase Operacional e nunca é devolvida ao navegador.</small>
+              <small className="security-note">As senhas PostgreSQL e SSH são criptografadas no servidor antes de serem armazenadas e nunca são devolvidas ao navegador.</small>
             </form>
           )}
         </div>
