@@ -56,9 +56,22 @@ export async function openSshForward(config:SshTunnelConfig, targetHost:string, 
       const timer = setTimeout(() => finish(() => reject(new Error(
         `SSH_FORWARD_TIMEOUT: o servidor SSH não alcançou ${targetHost}:${targetPort} em 10 segundos`,
       ))), 10_000);
-      ssh.forwardOut("127.0.0.1",0,targetHost,targetPort,(error,channel) => finish(() => error
-        ? reject(new Error(`SSH_FORWARD_FAILED: ${error.message}`))
-        : resolve(channel)));
+      ssh.forwardOut("127.0.0.1",0,targetHost,targetPort,(error,channel) => finish(() => {
+        if (error) {
+          reject(new Error(`SSH_FORWARD_FAILED: ${error.message}`));
+          return;
+        }
+        // node-postgres trata streams customizados como net.Socket e chama
+        // estes métodos antes do handshake. O Channel do ssh2 é um Duplex,
+        // mas não os implementa; os no-ops preservam o contrato esperado.
+        const socketLike = channel as Duplex & {
+          setNoDelay?: (enabled?: boolean) => Duplex;
+          setKeepAlive?: (enabled?: boolean, initialDelay?: number) => Duplex;
+        };
+        socketLike.setNoDelay ||= () => socketLike;
+        socketLike.setKeepAlive ||= () => socketLike;
+        resolve(socketLike);
+      }));
     });
     return { stream, close:async()=>{ stream.destroy(); ssh.end(); } };
   } catch (error) { ssh.end(); throw error; }
