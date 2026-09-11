@@ -168,8 +168,14 @@ export async function testPecConnection(config: PecConnectionConfig) {
     const message = error instanceof Error ? error.message : "Falha desconhecida";
     throw new Error(`${config.sshEnabled ? "POSTGRES_OVER_SSH_FAILED" : "POSTGRES_CONNECTION_FAILED"}: ${message}`);
   } finally {
-    await client.end().catch(() => undefined);
-    await tunnel?.close();
+    const ending = client.end().catch(() => undefined);
+    // O pg pode aguardar o fechamento do stream SSH indefinidamente. Feche o
+    // túnel primeiro e limite a espera da limpeza para nunca prender a rota.
+    await tunnel?.close().catch(() => undefined);
+    await Promise.race([
+      ending,
+      new Promise<void>((resolve) => setTimeout(resolve, 2_000)),
+    ]);
   }
 }
 
