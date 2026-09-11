@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { appPath } from "@/lib/base-path";
+import { getOfficialIndicators, type IndicatorGroup, type OfficialIndicator } from "@/lib/official-indicators";
 
 export type ManagementView = "overview" | "indicators" | "active-search" | "territory";
 
@@ -20,13 +21,12 @@ type Props = {
   nominalAccess: boolean;
 };
 
-const indicatorTools = [
-  { id: "tool_indicador_hipertensao", title: "Hipertensão", description: "Aferição de pressão arterial nos últimos 6 meses.", color: "blue" },
-  { id: "tool_indicador_diabetes", title: "Diabetes", description: "Solicitação ou avaliação de HbA1c nos últimos 6 meses.", color: "violet" },
-  { id: "tool_indicador_citopatologico", title: "Citopatológico", description: "Cobertura de rastreamento em mulheres elegíveis nos últimos 36 meses.", color: "rose" },
-  { id: "tool_indicador_vacinacao_infantil", title: "Vacinação infantil", description: "Esquema de Penta e VIP em crianças de 12 a 23 meses.", color: "green" },
-  { id: "tool_indicador_idoso", title: "Pessoa idosa", description: "Avaliação anual das pessoas com 60 anos ou mais.", color: "amber" },
-] as const;
+const indicatorColors = ["blue", "green", "rose", "violet", "blue", "amber", "rose"] as const;
+const indicatorGroups: Array<{id:IndicatorGroup;label:string;title:string}> = [
+  { id:"aps", label:"APS C1–C7", title:"Indicadores APS" },
+  { id:"oral", label:"Saúde Bucal B1–B6", title:"Indicadores de Saúde Bucal" },
+  { id:"emulti", label:"eMulti M1–M2", title:"Indicadores eMulti" },
+];
 
 function pretty(value: unknown) {
   if (value === null || value === undefined || value === "") return "—";
@@ -94,12 +94,26 @@ function Overview({ municipalityName }: { municipalityName: string }) {
 }
 
 function Indicators({ municipalityName }: { municipalityName: string }) {
-  const [selected, setSelected] = useState(indicatorTools[0].id as string);
+  const [group, setGroup] = useState<IndicatorGroup>("aps");
+  const indicatorTools = getOfficialIndicators(group).map((indicator, index) => ({ ...indicator, color: indicatorColors[index % indicatorColors.length] }));
+  const [selected, setSelected] = useState("C1");
   const [result, setResult] = useState<ToolResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  async function run(id: string) { setSelected(id); setLoading(true); setError(""); setResult(null); try { setResult(await requestTool(id, id === "tool_indicador_idoso" ? { ine: null } : {})); } catch (err) { setError(err instanceof Error ? err.message : "Falha ao consultar indicador."); } finally { setLoading(false); } }
-  return <div className="module-page"><ModuleHeader eyebrow="MONITORAMENTO" title="Indicadores" description="Acompanhe coberturas e pendências por equipe com critérios consistentes." municipalityName={municipalityName} /><div className="indicator-grid">{indicatorTools.map((item) => <button className={`indicator-card ${item.color} ${selected === item.id ? "selected" : ""}`} key={item.id} onClick={() => void run(item.id)} disabled={loading}><span className="indicator-dot" /><strong>{item.title}</strong><small>{item.description}</small><em>Consultar indicador →</em></button>)}</div>{loading && <div className="module-loading">Consultando o PEC e consolidando as equipes…</div>}{error && <div className="module-alert">{error}</div>}{result && <ResultTable result={result} />}</div>;
+  const selectedIndicator = indicatorTools.find((item) => item.id === selected) || indicatorTools[0];
+  function changeGroup(next: IndicatorGroup) { setGroup(next); setSelected(getOfficialIndicators(next)[0].id); setResult(null); setError(""); }
+  async function run(item: OfficialIndicator) {
+    setSelected(item.id); setError(""); setResult(null);
+    if (!item.toolId) { setError(`${item.id} está metodologicamente definido e aguarda o mapeamento das estruturas deste PEC: ${item.requiredDomains.join(", ")}.`); return; }
+    setLoading(true);
+    try { setResult(await requestTool(item.toolId, item.toolId === "tool_indicador_idoso" || item.toolId === "tool_censo_gestantes" ? { ine: null } : {})); }
+    catch (err) { setError(err instanceof Error ? err.message : "Falha ao consultar indicador."); }
+    finally { setLoading(false); }
+  }
+  const groupTitle = indicatorGroups.find((item) => item.id === group)?.title || "Indicadores";
+  const weights = selectedIndicator.weights || [];
+  const formula = selectedIndicator.formula || (selectedIndicator.id === "C1" ? "Programados ÷ (programados + espontâneos) × 100." : "Média da pontuação individual das boas práticas por equipe.");
+  return <div className="module-page"><ModuleHeader eyebrow="INDICADORES FEDERAIS · PRÉVIA LOCAL" title={groupTitle} description="Estrutura baseada nas notas metodológicas do Ministério da Saúde. Até a conciliação com o SIAPS, os resultados são estimativas gerenciais, não valores oficiais." municipalityName={municipalityName} /><nav className="indicator-tabs">{indicatorGroups.map((item) => <button key={item.id} className={group === item.id ? "active" : ""} onClick={() => changeGroup(item.id)}>{item.label}</button>)}</nav><div className="methodology-alert"><strong>Validação pendente</strong><span>Use um município real para conferir competência, denominador e resultado por INE no painel federal.</span></div><div className="indicator-grid">{indicatorTools.map((item) => <button className={`indicator-card ${item.color} ${selected === item.id ? "selected" : ""}`} key={item.id} onClick={() => void run(item)} disabled={loading}><span className="indicator-code">{item.id}</span><span className="indicator-status">{item.status === "schema_pending" ? "Estrutura pendente" : "Prévia parcial"}</span><strong>{item.title}</strong><small>{item.description}</small><em>{item.toolId ? "Ver prévia disponível →" : "Ver metodologia →"}</em></button>)}</div><section className="practice-panel"><header><div><span>{selectedIndicator.id}</span><strong>{selectedIndicator.title}</strong></div><small>{weights.length ? "Pontuação máxima: 100" : selectedIndicator.unit || "Indicador"}</small></header>{weights.length ? <div className="practice-grid">{weights.map((practice) => <article key={practice.code}><span>{practice.code}</span><p>{practice.label}</p><strong>{practice.points} pts</strong></article>)}</div> : <div className="formula-detail"><p>{formula}</p>{selectedIndicator.ranges && <small>{selectedIndicator.ranges}</small>}<span>Dados necessários: {selectedIndicator.requiredDomains.join(" · ")}</span></div>}</section>{loading && <div className="module-loading">Consultando a prévia local no PEC…</div>}{error && <div className="module-alert">{error}</div>}{result && <ResultTable result={result} />}</div>;
 }
 
 function ActiveSearch({ municipalityName, nominalAccess }: { municipalityName: string; nominalAccess: boolean }) {
