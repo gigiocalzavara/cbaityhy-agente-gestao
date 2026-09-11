@@ -30,12 +30,35 @@ export async function openSshForward(config:SshTunnelConfig, targetHost:string, 
     hostVerifier: expected ? (key:Buffer) => fingerprint(key) === expected : undefined,
   };
   await new Promise<void>((resolve,reject) => {
-    const fail=(error:Error)=>reject(new Error(`SSH_CONNECTION_FAILED: ${error.message}`));
-    ssh.once("ready",resolve).once("error",fail).connect(connectConfig);
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      callback();
+    };
+    const timer = setTimeout(() => finish(() => {
+      ssh.destroy();
+      reject(new Error(`SSH_CONNECTION_TIMEOUT: ${host}:${config.port} não respondeu em 12 segundos`));
+    }), 12_000);
+    const fail=(error:Error)=>finish(() => reject(new Error(`SSH_CONNECTION_FAILED: ${error.message}`)));
+    ssh.once("ready",() => finish(resolve)).once("error",fail).connect(connectConfig);
   });
   try {
     const stream = await new Promise<Duplex>((resolve,reject) => {
-      ssh.forwardOut("127.0.0.1",0,targetHost,targetPort,(error,channel) => error ? reject(new Error(`SSH_FORWARD_FAILED: ${error.message}`)) : resolve(channel));
+      let settled = false;
+      const finish = (callback: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        callback();
+      };
+      const timer = setTimeout(() => finish(() => reject(new Error(
+        `SSH_FORWARD_TIMEOUT: o servidor SSH não alcançou ${targetHost}:${targetPort} em 10 segundos`,
+      ))), 10_000);
+      ssh.forwardOut("127.0.0.1",0,targetHost,targetPort,(error,channel) => finish(() => error
+        ? reject(new Error(`SSH_FORWARD_FAILED: ${error.message}`))
+        : resolve(channel)));
     });
     return { stream, close:async()=>{ stream.destroy(); ssh.end(); } };
   } catch (error) { ssh.end(); throw error; }
