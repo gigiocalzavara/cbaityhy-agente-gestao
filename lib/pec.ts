@@ -38,6 +38,7 @@ export async function executeReadOnlyQuery<T extends QueryResultRow = Record<str
   municipalityId: string,
   sql: string,
   values: unknown[] = [],
+  options: { timeoutMs?: number } = {},
 ) {
   const config = await getPecConnection(municipalityId);
   const tunnel = config.sshEnabled ? await openSshForward({ host:config.sshHost, port:config.sshPort, username:config.sshUsername, password:config.sshPassword, hostFingerprint:config.sshHostFingerprint },config.host,config.port) : null;
@@ -48,7 +49,8 @@ export async function executeReadOnlyQuery<T extends QueryResultRow = Record<str
   }
   const pooledClient = sshClient ? null : await (await getPool(municipalityId)).connect();
   const client = sshClient || pooledClient!;
-  const timeout = Math.max(1000, Math.min(Number(process.env.PEC_PG_STATEMENT_TIMEOUT_MS || 8000), 15000));
+  const configuredTimeout = options.timeoutMs ?? Number(process.env.PEC_PG_STATEMENT_TIMEOUT_MS || 30_000);
+  const timeout = Math.max(1_000, Math.min(configuredTimeout, 120_000));
 
   try {
     await client.query("BEGIN READ ONLY");
