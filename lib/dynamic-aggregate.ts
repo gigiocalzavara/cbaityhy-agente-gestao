@@ -92,11 +92,11 @@ function suppressSmallCells(rows: Record<string, unknown>[]) {
 }
 
 export async function executeDynamicAggregate(question: string, municipalityId: string) {
-  if (question.trim().length < 4) throw new Error("DYNAMIC_SQL_QUESTION_REQUIRED");
+  if (question.trim().length < 4) throw new Error("DYNAMICq_QUESTION_REQUIRED");
   if (SENSITIVE_QUESTION.test(question)) throw new Error("DYNAMIC_SQL_SENSITIVE_QUESTION");
   const generated = await generateQuery(question, await schemaFor(municipalityId));
   const sql = validateSql(generated.sql);
-  await executeReadOnlyQuery(municipalityId, `EXPLAIN (FORMAT JSON) ${sql}`);
-  const rows = await executeReadOnlyQuery<Record<string, unknown>>(municipalityId, `SELECT * FROM (${sql}) AS dynamic_aggregate_result LIMIT 100`);
+  await executeReadOnlyQuery(municipalityId, `EXPLAIN (FORMAT JSON) ${sql}`, [], { timeoutMs: 15_000 });
+  const rows = await executeReadOnlyQuery<Record<string, unknown>>(municipalityId, `SELECT * FROM (${sql}) AS dynamic_aggregate_result LIMIT 100`, [], { timeoutMs: 30_000 });
   return { toolId: "tool_consulta_agregada_dinamica", kind: "aggregate" as const, nominal: false, chart: false, parameters: { question: question.slice(0, 1000) }, rowCount: rows.length, rows: suppressSmallCells(rows), title: generated.title };
 }
