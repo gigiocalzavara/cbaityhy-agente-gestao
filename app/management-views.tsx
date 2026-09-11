@@ -69,9 +69,26 @@ function Overview({ municipalityName }: { municipalityName: string }) {
   async function load() {
     setLoading(true); setError("");
     try {
-      const ids = ["tool_auditoria_cadastros", "tool_censo_gestantes", "tool_indicador_hipertensao", "tool_indicador_diabetes"];
-      const values = await Promise.all(ids.map((id) => requestTool(id, id === "tool_censo_gestantes" ? { ine: null } : {})));
-      setResults(Object.fromEntries(values.map((result) => [result.toolId, result])));
+      const tools: Array<{ id: string; label: string; parameters: Record<string, string | null> }> = [
+        { id: "tool_auditoria_cadastros", label: "qualidade cadastral", parameters: {} },
+        { id: "tool_censo_gestantes", label: "gestantes", parameters: { ine: null } },
+        { id: "tool_indicador_hipertensao", label: "hipertensão", parameters: {} },
+        { id: "tool_indicador_diabetes", label: "diabetes", parameters: {} },
+      ];
+      const loaded: Record<string, ToolResult> = {};
+      const failures: string[] = [];
+      for (const tool of tools) {
+        try {
+          const result = await requestTool(tool.id, tool.parameters);
+          loaded[result.toolId] = result;
+          setResults({ ...loaded });
+        } catch (toolError) {
+          const detail = toolError instanceof Error ? toolError.message : "falha na consulta";
+          failures.push(`${tool.label}: ${detail}`);
+        }
+      }
+      setResults(loaded);
+      if (failures.length) setError(`Alguns cartões não puderam ser atualizados. ${failures.join(" · ")}`);
     } catch (err) { setError(err instanceof Error ? err.message : "Falha ao carregar visão geral."); }
     finally { setLoading(false); }
   }
@@ -80,6 +97,10 @@ function Overview({ municipalityName }: { municipalityName: string }) {
   const pregnant = results.tool_censo_gestantes?.rows || [];
   const hypertension = results.tool_indicador_hipertensao?.rows || [];
   const diabetes = results.tool_indicador_diabetes?.rows || [];
+  const hasAudit = Boolean(results.tool_auditoria_cadastros);
+  const hasPregnant = Boolean(results.tool_censo_gestantes);
+  const hasHypertension = Boolean(results.tool_indicador_hipertensao);
+  const hasDiabetes = Boolean(results.tool_indicador_diabetes);
   const sum = (rows: Record<string, unknown>[], key: string) => rows.reduce((total, row) => total + numberValue(row[key]), 0);
   const pregnancyTotal = pregnant.find((row) => row.equipe === "TOTAL MUNICIPAL")?.total_gestantes_ativas ?? sum(pregnant, "total_gestantes_ativas");
   const totalRegistrations = sum(audit, "total_cadastros");
@@ -90,7 +111,7 @@ function Overview({ municipalityName }: { municipalityName: string }) {
   const diabeticCovered = sum(diabetes, "diabeticos_com_hba1c_6m");
   const percent = (value: number, total: number) => total ? `${(value / total * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "—";
 
-  return <div className="module-page"><ModuleHeader eyebrow="PAINEL MUNICIPAL" title="Visão geral" description="Leitura rápida dos principais dados assistenciais e cadastrais do PEC." municipalityName={municipalityName} /><div className="module-toolbar"><p>Os cartões são calculados diretamente no banco PEC do município ativo.</p><button onClick={load} disabled={loading}>{loading ? "Atualizando…" : Object.keys(results).length ? "Atualizar dados" : "Carregar painel"}</button></div>{error && <div className="module-alert">{error}</div>}<div className="kpi-grid"><article className="kpi-card"><span>Cadastros ativos</span><strong>{Object.keys(results).length ? pretty(totalRegistrations) : "—"}</strong><small>{Object.keys(results).length ? `${percent(validRegistrations, totalRegistrations)} vigentes em 24 meses` : "Aguardando consulta"}</small></article><article className="kpi-card"><span>Gestantes ativas</span><strong>{Object.keys(results).length ? pretty(pregnancyTotal) : "—"}</strong><small>Censo municipal identificado no PEC</small></article><article className="kpi-card"><span>Hipertensão</span><strong>{Object.keys(results).length ? percent(hypertensiveCovered, hypertensiveTotal) : "—"}</strong><small>{Object.keys(results).length ? `${pretty(hypertensiveTotal)} pessoas acompanhadas` : "PA registrada nos últimos 6 meses"}</small></article><article className="kpi-card"><span>Diabetes</span><strong>{Object.keys(results).length ? percent(diabeticCovered, diabeticTotal) : "—"}</strong><small>{Object.keys(results).length ? `${pretty(diabeticTotal)} pessoas identificadas` : "HbA1c nos últimos 6 meses"}</small></article></div><section className="module-info-grid"><article><span>01</span><div><strong>Qualidade cadastral</strong><p>Identifique rapidamente equipes com maior volume de cadastros vencidos.</p></div></article><article><span>02</span><div><strong>Cuidado continuado</strong><p>Compare cobertura de hipertensão e diabetes entre as equipes.</p></div></article><article><span>03</span><div><strong>Prioridade operacional</strong><p>Use os módulos de indicadores e busca ativa para aprofundar os achados.</p></div></article></section></div>;
+  return <div className="module-page"><ModuleHeader eyebrow="PAINEL MUNICIPAL" title="Visão geral" description="Leitura rápida dos principais dados assistenciais e cadastrais do PEC." municipalityName={municipalityName} /><div className="module-toolbar"><p>Os cartões são calculados diretamente no banco PEC do município ativo.</p><button onClick={load} disabled={loading}>{loading ? "Atualizando…" : Object.keys(results).length ? "Atualizar dados" : "Carregar painel"}</button></div>{error && <div className="module-alert">{error}</div>}<div className="kpi-grid"><article className="kpi-card"><span>Cadastros ativos</span><strong>{hasAudit ? pretty(totalRegistrations) : "—"}</strong><small>{hasAudit ? `${percent(validRegistrations, totalRegistrations)} vigentes em 24 meses` : "Aguardando consulta"}</small></article><article className="kpi-card"><span>Gestantes ativas</span><strong>{hasPregnant ? pretty(pregnancyTotal) : "—"}</strong><small>Censo municipal identificado no PEC</small></article><article className="kpi-card"><span>Hipertensão</span><strong>{hasHypertension ? percent(hypertensiveCovered, hypertensiveTotal) : "—"}</strong><small>{hasHypertension ? `${pretty(hypertensiveTotal)} pessoas acompanhadas` : "PA registrada nos últimos 6 meses"}</small></article><article className="kpi-card"><span>Diabetes</span><strong>{hasDiabetes ? percent(diabeticCovered, diabeticTotal) : "—"}</strong><small>{hasDiabetes ? `${pretty(diabeticTotal)} pessoas identificadas` : "HbA1c nos últimos 6 meses"}</small></article></div><section className="module-info-grid"><article><span>01</span><div><strong>Qualidade cadastral</strong><p>Identifique rapidamente equipes com maior volume de cadastros vencidos.</p></div></article><article><span>02</span><div><strong>Cuidado continuado</strong><p>Compare cobertura de hipertensão e diabetes entre as equipes.</p></div></article><article><span>03</span><div><strong>Prioridade operacional</strong><p>Use os módulos de indicadores e busca ativa para aprofundar os achados.</p></div></article></section></div>;
 }
 
 function Indicators({ municipalityName }: { municipalityName: string }) {
