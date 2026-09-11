@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { appPath } from "@/lib/base-path";
+import "./chat-markdown.css";
 
 type Identity = {
   email: string;
@@ -40,6 +41,64 @@ const suggestions = [
 function pretty(value: unknown) {
   if (value === null || value === undefined || value === "") return "—";
   return String(value);
+}
+
+function inlineMarkdown(text: string): ReactNode[] {
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter(Boolean).map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) return <strong key={index}>{part.slice(2, -2)}</strong>;
+    if (part.startsWith("`") && part.endsWith("`")) return <code key={index}>{part.slice(1, -1)}</code>;
+    return part;
+  });
+}
+
+function isTableDivider(line: string) {
+  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
+}
+
+function tableCells(line: string) {
+  return line.trim().replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim());
+}
+
+function MarkdownMessage({ content }: { content: string }) {
+  const lines = content.replace(/\r/g, "").split("\n");
+  const blocks: ReactNode[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index].trim();
+    if (!line) { index += 1; continue; }
+
+    if (index + 1 < lines.length && line.includes("|") && isTableDivider(lines[index + 1])) {
+      const headers = tableCells(line);
+      const rows: string[][] = [];
+      index += 2;
+      while (index < lines.length && lines[index].includes("|")) { rows.push(tableCells(lines[index])); index += 1; }
+      blocks.push(<div className="markdown-table-wrap" key={`table-${index}`}><table className="markdown-table"><thead><tr>{headers.map((header, cell) => <th key={cell}>{inlineMarkdown(header)}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={rowIndex}>{headers.map((_, cell) => <td key={cell}>{inlineMarkdown(row[cell] || "—")}</td>)}</tr>)}</tbody></table></div>);
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,4})\s+(.+)$/);
+    if (heading) {
+      const Heading = heading[1].length <= 2 ? "h3" : "h4";
+      blocks.push(<Heading key={`heading-${index}`}>{inlineMarkdown(heading[2])}</Heading>);
+      index += 1;
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) { items.push(lines[index].trim().replace(/^[-*]\s+/, "")); index += 1; }
+      blocks.push(<ul key={`list-${index}`}>{items.map((item, itemIndex) => <li key={itemIndex}>{inlineMarkdown(item)}</li>)}</ul>);
+      continue;
+    }
+
+    const paragraph: string[] = [line];
+    index += 1;
+    while (index < lines.length && lines[index].trim() && !/^(#{1,4})\s+/.test(lines[index].trim()) && !/^[-*]\s+/.test(lines[index].trim()) && !(index + 1 < lines.length && lines[index].includes("|") && isTableDivider(lines[index + 1]))) { paragraph.push(lines[index].trim()); index += 1; }
+    blocks.push(<p key={`paragraph-${index}`}>{inlineMarkdown(paragraph.join(" "))}</p>);
+  }
+
+  return <div className="markdown-content">{blocks}</div>;
 }
 
 function DataPresentation({ presentation }: { presentation: Presentation }) {
@@ -151,7 +210,7 @@ export default function Home() {
           {messages.length === 0 ? (
             <div className="welcome"><div className="welcome-icon">✦</div><h1>O que você quer analisar na APS?</h1><p>Converse com os dados do PEC de <strong>{identity.municipalityName}</strong> e com a base técnica da CBAItyhy. A conexão de dados é isolada por município.</p><div className="suggestions">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => void send(suggestion)}>{suggestion}</button>)}</div></div>
           ) : (
-            <div className="messages">{messages.map((message, index) => <article className={`message ${message.role}`} key={`${message.role}-${index}`}><div className="avatar">{message.role === "user" ? "G" : "✦"}</div><div className="message-body"><div className="message-author">{message.role === "user" ? "Você" : "CBAItyhy IA"}</div><div className="message-content">{message.content}</div>{message.presentation && <DataPresentation presentation={message.presentation} />}{message.sources && message.sources.length > 0 && <div className="sources"><span>Fontes consultadas</span>{message.sources.slice(0, 5).map((source) => source.url ? <a key={source.id} href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : <span className="source-chip" key={source.id}>{source.title}</span>)}</div>}</div></article>)}{loading && <article className="message assistant"><div className="avatar">✦</div><div className="message-body"><div className="thinking">Consultando dados e analisando evidências…</div></div></article>}</div>
+            <div className="messages">{messages.map((message, index) => <article className={`message ${message.role}`} key={`${message.role}-${index}`}><div className="avatar">{message.role === "user" ? "G" : "✦"}</div><div className="message-body"><div className="message-author">{message.role === "user" ? "Você" : "CBAItyhy IA"}</div><div className="message-content">{message.role === "assistant" ? <MarkdownMessage content={message.content} /> : message.content}</div>{message.presentation && <DataPresentation presentation={message.presentation} />}{message.sources && message.sources.length > 0 && <div className="sources"><span>Fontes consultadas</span>{message.sources.slice(0, 5).map((source) => source.url ? <a key={source.id} href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : <span className="source-chip" key={source.id}>{source.title}</span>)}</div>}</div></article>)}{loading && <article className="message assistant"><div className="avatar">✦</div><div className="message-body"><div className="thinking">Consultando dados e analisando evidências…</div></div></article>}</div>
           )}
         </div>
         <div className="composer-wrap"><form className="composer" onSubmit={submit}><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (canSend) void send(); } }} placeholder={`Pergunte sobre ${identity.municipalityName}…`} rows={1} /><button type="submit" disabled={!canSend}>↑</button></form><small>Consultas assistenciais usam somente tools SQL homologadas e a conexão PEC do município ativo.</small></div>
