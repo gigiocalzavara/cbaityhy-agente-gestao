@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import catalog from "@/config/tool-catalog.json";
 import { executeReadOnlyQuery } from "@/lib/pec";
+import { executeDynamicAggregate } from "@/lib/dynamic-aggregate";
 
 export type AccessRole = "admin" | "manager" | "municipal_manager" | "coordinator" | "team";
 
@@ -59,7 +60,7 @@ function maskSensitiveRow(row: Record<string, unknown>) {
 }
 
 export function getToolDefinitions() {
-  return (catalog.tools as ToolMeta[]).map((tool) => ({
+  const homologated = (catalog.tools as ToolMeta[]).map((tool) => ({
     type: "function", name: tool.id, description: describeTool(tool.id), strict: true,
     parameters: {
       type: "object",
@@ -70,6 +71,18 @@ export function getToolDefinitions() {
       additionalProperties: false,
     },
   }));
+  return [...homologated, {
+    type: "function",
+    name: "tool_consulta_agregada_dinamica",
+    description: "Fallback para perguntas agregadas sobre o PEC não atendidas por uma ferramenta homologada. Nunca use para busca nominal ou quando já existir ferramenta específica.",
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: { question: { type: "string", description: "Pergunta agregada original do usuário, sem instruções SQL." } },
+      required: ["question"],
+      additionalProperties: false,
+    },
+  }];
 }
 
 function describeTool(id: string) {
@@ -89,6 +102,9 @@ function describeTool(id: string) {
 }
 
 export async function executeTool(toolId: string, rawArguments: Record<string, unknown>, context: ToolExecutionContext) {
+  if (toolId === "tool_consulta_agregada_dinamica") {
+    return executeDynamicAggregate(String(rawArguments.question || "").trim(), context.municipalityId);
+  }
   const meta = tools.get(toolId);
   if (!meta) throw new Error("Tool não homologada.");
   if (meta.nominal && (!context.nominalAccess || !["admin", "manager", "municipal_manager", "coordinator"].includes(context.role))) throw new Error("FORBIDDEN_NOMINAL");
