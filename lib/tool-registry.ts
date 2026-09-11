@@ -4,6 +4,7 @@ import path from "node:path";
 import catalog from "@/config/tool-catalog.json";
 import { executeReadOnlyQuery } from "@/lib/pec";
 import { executeDynamicAggregate } from "@/lib/dynamic-aggregate";
+import { readToolCache, writeToolCache } from "@/lib/tool-cache";
 
 export type AccessRole = "admin" | "manager" | "municipal_manager" | "coordinator" | "team";
 
@@ -20,6 +21,7 @@ export type ToolExecutionContext = {
   role: AccessRole;
   municipalityId: string;
   nominalAccess: boolean;
+  cacheMode?: "prefer" | "refresh" | "bypass";
 };
 
 const tools = new Map((catalog.tools as ToolMeta[]).map((tool) => [tool.id, tool]));
@@ -113,9 +115,26 @@ export async function executeTool(toolId: string, rawArguments: Record<string, u
   if (!meta) throw new Error("Tool não homologada.");
   if (meta.nominal && (!context.nominalAccess || !["admin", "manager", "municipal_manager", "coordinator"].includes(context.role))) throw new Error("FORBIDDEN_NOMINAL");
   const { clean, values } = sanitizeArguments(meta, rawArguments);
+  const cacheMode = context.cacheMode || "prefer";
+  if (!meta.nominal && cacheMode === "prefer") {
+    const cached = await readToolCache(context.municipalityId, toolId, clean);
+    if (cached) return cached;
+  }
   const sql = await readFile(path.join(process.cwd(), meta.sql), "utf8");
-  const rows = await executeReadOnlyQuery(context.municipalityId, sql, values, { timeoutMs: 30_000 });
+  const timeoutMs = toolId === "tool_censo_gestantes" ? 60_000 : 30_000;
+  const started = Date.now();
+  const rows = await executeReadOnlyQuery(context.municipalityId, sql, values, { timeoutMs });
   const max = meta.nominal ? Number(process.env.DEFAULT_RESULT_LIMIT || 15) : 250;
-  const limited = rows.slice(0, Math.max(1, Math.min(max, 500))).map(maskSensitiveRow);
-  return { toolId, kind: meta.kind, nominal: meta.nominal, chart: meta.chart, parameters: clean, rowCount: limited.length, rows: limited };
+  const selectedRows = rows.slice(0, Math.max(1, Math.min(max, 500)));
+  // Nominal tools are already protected by role + nominal_access above. Authorized
+  // managers need the identifiers to perform active search; aggregate results keep
+  // the defensive masking in case a future SQL exposes an identifier by mistake.
+  const limited = meta.nominal ? selectedRows : selectedRows.map(maskSensitiveRow);
+  const result = { toolId, kind: meta.kind, nominal: meta.nominal, chart: meta.chart, parameters: clean, rowCount: limited.length, rows: limited };
+  if (!meta.nominal && cacheMode !== "bypass") {
+    const cacheWrite = writeToolCache(context.municipalityId, result, Date.now() - started);
+    if (cacheMode === "refresh") await cacheWrite;
+    else await cacheWrite.catch(() => undefined);
+  }
+  return result;
 }
