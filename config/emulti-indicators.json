@@ -1,0 +1,8 @@
+{
+  "methodologyVersion":"2026-07-01",
+  "source":"https://www.gov.br/saude/pt-br/composicao/saps/publicacoes/fichas-tecnicas/equipes-multiprofissionais-emulti",
+  "indicators":[
+    {"id":"M1","title":"MÃ©dia de atendimentos por pessoa","toolId":null,"status":"schema_pending","description":"Intensidade do acompanhamento individual e coletivo realizado pela eMulti.","formula":"Atendimentos individuais e coletivos realizados pela eMulti Ã· pessoas atendidas pela eMulti.","unit":"mÃ©dia","polarity":"higher","ranges":"Ãtimo > 3; Bom > 2 a 3; Suficiente > 1 a 2; Regular â¤ 1.","requiredDomains":["atendimento individual","atividade coletiva","equipe tipo 72","CBO","CNS/CPF"]},
+    {"id":"M2","title":"AÃ§Ãµes interprofissionais","toolId":null,"status":"schema_pending","description":"ProporÃ§Ã£o de aÃ§Ãµes compartilhadas no conjunto de aÃ§Ãµes da eMulti.","formula":"AÃ§Ãµes compartilhadas pela eMulti Ã· todas as aÃ§Ãµes realizadas pela eMulti.","unit":"%","polarity":"neutral","ranges":"Ãtimo > 5%; Bom > 2,5% a 5%; Suficiente > 1% a 2,5%; Regular â¤ 1%.","requiredDomains":["atendimento compartilhado","atividade coletiva","dois CNS profissionais distintos","equipe tipo 72","CBO"]}
+  ]
+}
