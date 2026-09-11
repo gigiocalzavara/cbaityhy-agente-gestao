@@ -65,8 +65,15 @@ export async function openSshForward(config:SshTunnelConfig, targetHost:string, 
         // estes métodos antes do handshake. O Channel do ssh2 é um Duplex,
         // mas não os implementa; os no-ops preservam o contrato esperado.
         const socketLike = channel as Duplex & {
+          connect?: (port?: number, host?: string) => Duplex;
           setNoDelay?: (enabled?: boolean) => Duplex;
           setKeepAlive?: (enabled?: boolean, initialDelay?: number) => Duplex;
+        };
+        socketLike.connect ||= () => {
+          // O canal já está conectado pelo forwardOut. O pg registra o listener
+          // de `connect` logo após esta chamada, portanto emitimos no próximo tick.
+          queueMicrotask(() => socketLike.emit("connect"));
+          return socketLike;
         };
         socketLike.setNoDelay ||= () => socketLike;
         socketLike.setKeepAlive ||= () => socketLike;
