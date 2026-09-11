@@ -28,7 +28,7 @@ async function callResponses(payload: Record<string, unknown>) {
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error(`OpenAI ${response.status}: ${await response.text()}`);
+  if (!response.ok) throw new Error("OpenAI ${response.status}: ${await response.text()}`);
   return response.json();
 }
 
@@ -108,10 +108,15 @@ export async function runManagementAgent({ message, history = [], context }: Age
         outputs.push({ type: "function_call_output", call_id: call.call_id, output: JSON.stringify(lastToolResult) });
       } catch (error) {
         const code = error instanceof Error ? error.message : "TOOL_ERROR";
+        const timeout = /statement timeout|canceling statement/i.test(code);
         outputs.push({
           type: "function_call_output",
           call_id: call.call_id,
-          output: JSON.stringify({ error: code === "FORBIDDEN_NOMINAL" ? "Acesso nominal não autorizado para este perfil." : "Falha controlada ao executar a ferramenta." }),
+          output: JSON.stringify({ error: code === "FORBIDDEN_NOMINAL"
+            ? "Acesso nominal não autorizado para este perfil."
+            : timeout
+              ? "A consulta ao PEC excedeu o tempo permitido. Informe que os dados não puderam ser atualizados e sugira tentar novamente."
+              : "Falha controlada ao executar a ferramenta." }),
         });
       }
     }
