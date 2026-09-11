@@ -92,7 +92,7 @@ function suppressSmallCells(rows: Record<string, unknown>[]) {
 }
 
 export async function executeDynamicAggregate(question: string, municipalityId: string) {
-  if (question.trim().length < 4) throw new Error("DYNAMICq_QUESTION_REQUIRED");
+  if (question.trim().length < 4) throw new Error("DYNAMIC_SQL_QUESTION_REQUIRED");
   if (SENSITIVE_QUESTION.test(question)) throw new Error("DYNAMIC_SQL_SENSITIVE_QUESTION");
   const generated = await generateQuery(question, await schemaFor(municipalityId));
   const sql = validateSql(generated.sql);
