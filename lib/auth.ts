@@ -9,6 +9,7 @@ export type ManagementIdentity = {
   organizationId: string;
   municipalityId: string;
   municipalityName: string;
+  municipalityIbgeCode: string;
   role: AccessRole;
   nominalAccess: boolean;
 };
@@ -74,6 +75,7 @@ export async function requireManagementIdentity(): Promise<ManagementIdentity> {
     organizationId: profile.organization_id,
     municipalityId: municipality.id,
     municipalityName: municipality.name,
+    municipalityIbgeCode: municipality.ibge_code,
     role: profile.role,
     nominalAccess: Boolean(profile.nominal_access),
   };
