@@ -17,7 +17,13 @@ async function activeConnectedMunicipalities() {
     "/rest/v1/aps_agent_municipality_connections?select=municipality_id&active=eq.true&order=municipality_id.asc",
   );
   if (!response.ok) throw new Error(`CACHE_MUNICIPALITIES_FAILED: ${await response.text()}`);
-  return ((await response.json()) as Array<{ municipality_id: string }>).map((row) => row.municipality_id);
+  const ids = ((await response.json()) as Array<{ municipality_id: string }>).map((row) => row.municipality_id);
+  if (!ids.length) return [];
+  const municipalitiesResponse = await operationalFetch(
+    `/rest/v1/municipalities?select=id,ibge_code&id=in.(${ids.join(",")})`,
+  );
+  if (!municipalitiesResponse.ok) throw new Error(`CACHE_MUNICIPALITY_CODES_FAILED: ${await municipalitiesResponse.text()}`);
+  return (await municipalitiesResponse.json()) as Array<{ id: string; ibge_code: string }>;
 }
 
 export async function refreshAllMunicipalityCaches() {
@@ -25,13 +31,15 @@ export async function refreshAllMunicipalityCaches() {
   const targets = cacheRefreshTargets();
   const report: Array<Record<string, unknown>> = [];
 
-  for (const municipalityId of municipalities) {
+  for (const municipality of municipalities) {
+    const municipalityId = municipality.id;
     for (const target of targets) {
       const started = Date.now();
       try {
         const result = await executeTool(target.id, target.parameters, {
           role: "admin",
           municipalityId,
+          municipalityIbgeCode: municipality.ibge_code,
           nominalAccess: false,
           cacheMode: "refresh",
         });
@@ -45,4 +53,3 @@ export async function refreshAllMunicipalityCaches() {
   }
   return { startedMunicipalities: municipalities.length, targets: targets.length, report };
 }
-
