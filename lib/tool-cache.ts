@@ -19,8 +19,45 @@ type CacheRow = {
   status: "success" | "error";
 };
 
+export type IndicatorHistoryRow = {
+  tool_id: string;
+  parameters: Record<string, string | null>;
+  snapshot_date: string;
+  result: CachedToolResult;
+  row_count: number;
+  duration_ms: number | null;
+  generated_at: string;
+};
+
 function encodedParameters(parameters: Record<string, string | null>) {
   return encodeURIComponent(JSON.stringify(parameters));
+}
+
+function saoPauloDate(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
+export async function readIndicatorHistory(
+  municipalityId: string,
+  toolId: string,
+  options: { from?: string | null; to?: string | null; limit?: number } = {},
+) {
+  const limit = Math.max(1, Math.min(options.limit || 180, 366));
+  let path = `/rest/v1/aps_agent_indicator_history?select=tool_id,parameters,snapshot_date,result,row_count,duration_ms,generated_at` +
+    `&municipality_id=eq.${encodeURIComponent(municipalityId)}` +
+    `&tool_id=eq.${encodeURIComponent(toolId)}&order=snapshot_date.asc&limit=${limit}`;
+  if (options.from) path += `&snapshot_date=gte.${encodeURIComponent(options.from)}`;
+  if (options.to) path += `&snapshot_date=lte.${encodeURIComponent(options.to)}`;
+  const response = await operationalFetch(path);
+  if (!response.ok) throw new Error(`INDICATOR_HISTORY_READ_FAILED: ${await response.text()}`);
+  return response.json() as Promise<IndicatorHistoryRow[]>;
 }
 
 export async function readToolCache(
@@ -73,6 +110,28 @@ export async function writeToolCache(
     }),
   });
   if (!response.ok) throw new Error(`CACHE_WRITE_FAILED: ${await response.text()}`);
+
+  // Preserve one aggregate snapshot per day for historical charts. Tool results
+  // marked as nominal never reach this function (enforced by the registry).
+  const snapshotDate = saoPauloDate(now);
+  const historyResponse = await operationalFetch(
+    "/rest/v1/aps_agent_indicator_history?on_conflict=municipality_id,tool_id,parameters,snapshot_date",
+    {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({
+        municipality_id: municipalityId,
+        tool_id: result.toolId,
+        parameters: result.parameters,
+        snapshot_date: snapshotDate,
+        result: { ...result, cache: undefined },
+        row_count: result.rowCount,
+        duration_ms: durationMs,
+        generated_at: now.toISOString(),
+      }),
+    },
+  );
+  if (!historyResponse.ok) throw new Error("INDICATOR_HISTORY_WRITE_FAILED: " + await historyResponse.text());
 }
 
 export async function markToolCacheFailure(
@@ -94,4 +153,3 @@ export async function markToolCacheFailure(
   );
   if (!response.ok) throw new Error(`CACHE_FAILURE_WRITE_FAILED: ${await response.text()}`);
 }
-
