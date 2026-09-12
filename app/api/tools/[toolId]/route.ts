@@ -11,6 +11,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ to
     const result = await executeTool(toolId, body?.parameters || {}, {
       role: identity.role,
       municipalityId: identity.municipalityId,
+      municipalityIbgeCode: identity.municipalityIbgeCode,
       nominalAccess: identity.nominalAccess,
     });
     return NextResponse.json(result);
