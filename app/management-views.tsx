@@ -47,6 +47,8 @@ const indicatorMetricColumns: Record<string, { numerator: string; denominator: s
   C5: { numerator: "hipertensos_com_pa_6m", denominator: "total_hipertensos_ativos" },
   C6: { numerator: "idosos_com_avaliacao_anual", denominator: "total_idosos_cadastrados" },
   C7: { numerator: "mulheres_com_preventivo_36m", denominator: "total_mulheres_elegiveis" },
+  B1: { numerator: "pessoas_primeira_consulta", denominator: "pessoas_vinculadas_referencia" },
+  B2: { numerator: "pessoas_tratamento_concluido", denominator: "pessoas_primeira_consulta" },
 };
 
 function indicatorSummary(indicator: OfficialIndicator, result?: ToolResult) {
@@ -57,6 +59,7 @@ function indicatorSummary(indicator: OfficialIndicator, result?: ToolResult) {
   const denominator = rows.reduce((total, row) => total + numberValue(row[metric.denominator]), 0);
   const numerator = rows.reduce((total, row) => total + numberValue(row[metric.numerator]), 0);
   if (indicator.id === "C3") return { value: pretty(numerator), detail: "gestantes identificadas" };
+  if (indicator.id === "B1") return { value: pretty(numerator), detail: "pessoas com primeira consulta no mês; denominador SCNES pendente" };
   return {
     value: denominator ? `${(numerator / denominator * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "—",
     detail: `${pretty(numerator)} de ${pretty(denominator)} pessoas`,
