@@ -9,6 +9,7 @@ type ToolMeta = {
   id: string;
   sql: string;
   parameters: string[];
+  municipalityScoped?: boolean;
 };
 
 export type PecToolValidation = {
@@ -55,7 +56,7 @@ async function inspectSaude360Schema(municipalityId: string) {
   });
 }
 
-function validationValues(parameters: string[]) {
+function validationValues(parameters: string[]): Array<string | null> {
   return parameters.map((parameter) => parameter === "logradouro" ? "RUA" : null);
 }
 
@@ -64,16 +65,21 @@ function safeDatabaseError(error: unknown) {
   return message.replace(/[\r\n]+/g, " ").slice(0, 500);
 }
 
-export async function validatePecToolCatalog(municipalityId: string) {
+export async function validatePecToolCatalog(municipalityId: string, municipalityIbgeCode: string) {
   const results: PecToolValidation[] = [];
 
   for (const tool of catalog.tools as ToolMeta[]) {
     try {
-      const sql = await readFile(path.join(process.cwd(), tool.sql), "utf8");
+      const sqlTemplate = await readFile(path.join(process.cwd(), tool.sql), "utf8");
+      const values = validationValues(tool.parameters);
+      const sql = tool.municipalityScoped
+        ? sqlTemplate.replaceAll("{{MUNICIPALITY_IBGE}}", `$${values.length + 1}`)
+        : sqlTemplate;
+      if (tool.municipalityScoped) values.push(municipalityIbgeCode);
       await executeReadOnlyQuery(
         municipalityId,
         `EXPLAIN (FORMAT JSON) ${sql}`,
-        validationValues(tool.parameters),
+        values,
       );
       results.push({ id: tool.id, status: "compatible", error: null });
     } catch (error) {
