@@ -15,11 +15,13 @@ type ToolMeta = {
   nominal: boolean;
   chart: boolean;
   parameters: string[];
+  municipalityScoped?: boolean;
 };
 
 export type ToolExecutionContext = {
   role: AccessRole;
   municipalityId: string;
+  municipalityIbgeCode: string;
   nominalAccess: boolean;
   cacheMode?: "prefer" | "refresh" | "bypass";
 };
@@ -103,8 +105,8 @@ function describeTool(id: string) {
     tool_censo_gestantes: "Censo agregado de gestantes ativas por equipe. Pode filtrar por INE.",
     tool_busca_territorial_rua: "Censo territorial agregado por logradouro. Requer logradouro e pode filtrar por INE.",
     tool_auditoria_cadastros: "Auditoria de cadastros ativos e atualização cadastral nos últimos 24 meses.",
-    tool_indicador_saude_bucal_b1: "Prévia mensal B1: pessoas com primeira consulta odontológica programática por eSB/INE. O denominador SCNES ainda não está disponível.",
-    tool_indicador_saude_bucal_b2: "Prévia mensal B2: tratamentos odontológicos concluídos em relação às primeiras consultas programáticas, por eSB/INE.",
+    tool_indicador_saude_bucal_b1: "Prévia mensal B1 filtrada pelo IBGE do município ativo: pessoas com primeira consulta odontológica programática por eSB/INE. O denominador populacional ainda não está disponível.",
+    tool_indicador_saude_bucal_b2: "Prévia mensal B2 filtrada pelo IBGE do município ativo: tratamentos odontológicos concluídos em relação às primeiras consultas programáticas, por eSB/INE.",
   };
   return descriptions[id] || id;
 }
@@ -117,15 +119,21 @@ export async function executeTool(toolId: string, rawArguments: Record<string, u
   if (!meta) throw new Error("Tool não homologada.");
   if (meta.nominal && (!context.nominalAccess || !["admin", "manager", "municipal_manager", "coordinator"].includes(context.role))) throw new Error("FORBIDDEN_NOMINAL");
   const { clean, values } = sanitizeArguments(meta, rawArguments);
+  if (meta.municipalityScoped) clean.municipality_ibge = context.municipalityIbgeCode;
   const cacheMode = context.cacheMode || "prefer";
   if (!meta.nominal && cacheMode === "prefer") {
     const cached = await readToolCache(context.municipalityId, toolId, clean);
     if (cached) return cached;
   }
-  const sql = await readFile(path.join(process.cwd(), meta.sql), "utf8");
+  const sqlTemplate = await readFile(path.join(process.cwd(), meta.sql), "utf8");
+  const municipalityPlaceholder = `$${values.length + 1}`;
+  const sql = meta.municipalityScoped
+    ? sqlTemplate.replaceAll("{{MUNICIPALITY_IBGE}}", municipalityPlaceholder)
+    : sqlTemplate;
+  const queryValues = meta.municipalityScoped ? [...values, context.municipalityIbgeCode] : values;
   const timeoutMs = toolId === "tool_censo_gestantes" ? 60_000 : 30_000;
   const started = Date.now();
-  const rows = await executeReadOnlyQuery(context.municipalityId, sql, values, { timeoutMs });
+  const rows = await executeReadOnlyQuery(context.municipalityId, sql, queryValues, { timeoutMs });
   const max = meta.nominal ? Number(process.env.DEFAULT_RESULT_LIMIT || 15) : 250;
   const selectedRows = rows.slice(0, Math.max(1, Math.min(max, 500)));
   // Nominal tools are already protected by role + nominal_access above. Authorized
