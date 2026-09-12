@@ -1,5 +1,6 @@
 version: "3.9"
 
+
 services:
   app:
     image: ghcr.io/gigiocalzavara/cbaityhy-agente-gestao:latest
@@ -15,6 +16,7 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-luna}
       OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
       APS_AGENT_DB_CREDENTIALS_KEY: ${APS_AGENT_DB_CREDENTIALS_KEY}
+      CACHE_REFRESH_SECRET: ${CACHE_REFRESH_SECRET}
       PEC_PG_POOL_MAX: ${PEC_PG_POOL_MAX:-5}
       PEC_PG_STATEMENT_TIMEOUT_MS: ${PEC_PG_STATEMENT_TIMEOUT_MS:-8000}
       DEFAULT_RESULT_LIMIT: ${DEFAULT_RESULT_LIMIT:-15}
@@ -42,7 +44,9 @@ services:
         - traefik.http.routers.cbaityhy-gestao.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencryptresolver}
         - traefik.http.services.cbaityhy-gestao.loadbalancer.server.port=3000
 
+
 networks:
   traefik_public:
     external: true
     name: ${TRAEFIK_NETWORK:-azurranet}
+
