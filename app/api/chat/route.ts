@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
         organizationId: identity.organizationId,
         municipalityId: identity.municipalityId,
         municipalityName: identity.municipalityName,
+        municipalityIbgeCode: identity.municipalityIbgeCode,
         role: identity.role,
         nominalAccess: identity.nominalAccess,
       },
