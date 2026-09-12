@@ -56,10 +56,13 @@ function indicatorSummary(indicator: OfficialIndicator, result?: ToolResult) {
   const metric = indicatorMetricColumns[indicator.id];
   if (!metric) return null;
   const rows = result.rows.filter((row) => row.equipe !== "TOTAL MUNICIPAL");
+  if (!rows.length && (indicator.id === "B1" || indicator.id === "B2")) {
+    return { value: "—", detail: "Sem produção odontológica para o município ativo neste mês" };
+  }
   const denominator = rows.reduce((total, row) => total + numberValue(row[metric.denominator]), 0);
   const numerator = rows.reduce((total, row) => total + numberValue(row[metric.numerator]), 0);
   if (indicator.id === "C3") return { value: pretty(numerator), detail: "gestantes identificadas" };
-  if (indicator.id === "B1") return { value: pretty(numerator), detail: "pessoas com primeira consulta no mês; denominador SCNES pendente" };
+  if (indicator.id === "B1") return { value: pretty(numerator), detail: "pessoas com primeira consulta no mês; denominador populacional pendente" };
   return {
     value: denominator ? `${(numerator / denominator * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "—",
     detail: `${pretty(numerator)} de ${pretty(denominator)} pessoas`,
