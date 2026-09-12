@@ -103,6 +103,8 @@ function describeTool(id: string) {
     tool_censo_gestantes: "Censo agregado de gestantes ativas por equipe. Pode filtrar por INE.",
     tool_busca_territorial_rua: "Censo territorial agregado por logradouro. Requer logradouro e pode filtrar por INE.",
     tool_auditoria_cadastros: "Auditoria de cadastros ativos e atualização cadastral nos últimos 24 meses.",
+    tool_indicador_saude_bucal_b1: "Prévia mensal B1: pessoas com primeira consulta odontológica programática por eSB/INE. O denominador SCNES ainda não está disponível.",
+    tool_indicador_saude_bucal_b2: "Prévia mensal B2: tratamentos odontológicos concluídos em relação às primeiras consultas programáticas, por eSB/INE.",
   };
   return descriptions[id] || id;
 }
