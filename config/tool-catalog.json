@@ -10,6 +10,8 @@
     {"id":"tool_indicador_vacinacao_infantil","sql":"sql/tools/tool_indicador_vacinacao_infantil.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[]},
     {"id":"tool_censo_gestantes","sql":"sql/tools/tool_censo_gestantes.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":["ine"]},
     {"id":"tool_busca_territorial_rua","sql":"sql/tools/tool_busca_territorial_rua.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":["logradouro","ine"]},
-    {"id":"tool_auditoria_cadastros","sql":"sql/tools/tool_auditoria_cadastros.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[]}
+    {"id":"tool_auditoria_cadastros","sql":"sql/tools/tool_auditoria_cadastros.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[]},
+    {"id":"tool_indicador_saude_bucal_b1","sql":"sql/tools/tool_indicador_saude_bucal_b1.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[]},
+    {"id":"tool_indicador_saude_bucal_b2","sql":"sql/tools/tool_indicador_saude_bucal_b2.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[]}
   ]
 }
