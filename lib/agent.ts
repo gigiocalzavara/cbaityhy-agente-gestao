@@ -72,6 +72,7 @@ export async function runManagementAgent({ message, history = [], context }: Age
     "Para perguntas normativas, use exclusivamente as evidências do RAG fornecidas no contexto; se forem insuficientes, declare a limitação.",
     "Para dados agregados, destaque cobertura, equipes em pior situação e prioridade operacional sem criar meta normativa não sustentada.",
     "Para busca nominal, só solicite uma função nominal se a pergunta realmente pedir lista de pessoas/ação de busca ativa.",
+    "Quando uma consulta não retornar dados ou falhar, explique a limitação sem encerrar apenas com uma mensagem de erro: indique qual cartão da área Indicadores ou qual Busca ativa relacionada o gestor pode consultar em seguida.",
     "Responda em português do Brasil, de forma executiva e direta.",
   ].join(" ");
 
@@ -134,9 +135,12 @@ export async function runManagementAgent({ message, history = [], context }: Age
 
   const answer = outputText(current).trim();
   if (!answer) throw new Error("A IA não retornou conteúdo.");
+  const improvedAnswer = /não foi possível consultar|falha temporária|não consegui (?:consultar|obter)/i.test(answer) && !/área (?:de )?\*\*?Indicadores|seção (?:de )?\*\*?Indicadores/i.test(answer)
+    ? `${answer}\n\nEnquanto essa consulta não está disponível, abra **Indicadores** para verificar os resultados assistenciais relacionados e identificar equipes que precisam de atenção.`
+    : answer;
 
   return {
-    answer,
+    answer: improvedAnswer,
     sources: sources.map((source) => ({ id: source.id, title: source.title, url: source.canonical_url || "" })),
     ragUsed: Boolean(evidence),
     toolUsed: lastToolResult?.toolId || null,

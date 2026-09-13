@@ -46,6 +46,11 @@ function sanitizeArguments(meta: ToolMeta, raw: Record<string, unknown>) {
       const normalized = String(value).normalize("NFKC").replace(/[;%'"\\_]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
       clean[parameter] = normalized || null; values.push(normalized || null); continue;
     }
+    if (parameter === "nome") {
+      const normalized = String(value).normalize("NFKC").replace(/[;%'"\\_]/g, " ").replace(/\s+/g, " ").trim().slice(0, 100);
+      if (normalized.length < 3) throw new Error("Informe ao menos 3 caracteres do nome.");
+      clean[parameter] = normalized; values.push(normalized); continue;
+    }
     throw new Error(`Parâmetro não suportado: ${parameter}`);
   }
   return { clean, values };
@@ -74,7 +79,9 @@ export function getToolDefinitions() {
       type: "object",
       properties: Object.fromEntries(tool.parameters.map((parameter) => [parameter, parameter === "ine"
         ? { type: ["string", "null"], description: "INE da equipe, apenas quando explicitamente informado ou já selecionado no contexto." }
-        : { type: ["string", "null"], description: "Nome do logradouro informado pelo usuário." }])),
+        : parameter === "nome"
+          ? { type: ["string", "null"], description: "Nome do cidadão informado pelo gestor, com pelo menos 3 caracteres." }
+          : { type: ["string", "null"], description: "Nome do logradouro informado pelo usuário." }])),
       required: tool.parameters,
       additionalProperties: false,
     },
@@ -107,6 +114,8 @@ function describeTool(id: string) {
     tool_auditoria_cadastros: "Auditoria de cadastros ativos e atualização cadastral nos últimos 24 meses.",
     tool_indicador_saude_bucal_b1: "Prévia mensal B1 filtrada pelo IBGE do município ativo: pessoas com primeira consulta odontológica programática por eSB/INE. O denominador populacional ainda não está disponível.",
     tool_indicador_saude_bucal_b2: "Prévia mensal B2 filtrada pelo IBGE do município ativo: tratamentos odontológicos concluídos em relação às primeiras consultas programáticas, por eSB/INE.",
+    tool_listar_esf: "Lista agregada das equipes de Saúde da Família ativas do município para aplicação de filtros.",
+    tool_busca_duplicidades_cadastrais: "Pesquisa nominal auditável de possíveis cadastros duplicados, incluindo inativos, e recomenda o cadastro demograficamente mais confiável sem alterar o PEC.",
   };
   return descriptions[id] || id;
 }
@@ -117,7 +126,7 @@ export async function executeTool(toolId: string, rawArguments: Record<string, u
   }
   const meta = tools.get(toolId);
   if (!meta) throw new Error("Tool não homologada.");
-  if (meta.nominal && (!context.nominalAccess || !["admin", "manager", "municipal_manager", "coordinator"].includes(context.role))) throw new Error("FORBIDDEN_NOMINAL");
+  if (meta.nominal && !["admin", "manager", "municipal_manager", "coordinator"].includes(context.role)) throw new Error("FORBIDDEN_NOMINAL");
   const { clean, values } = sanitizeArguments(meta, rawArguments);
   if (meta.municipalityScoped) clean.municipality_ibge = context.municipalityIbgeCode;
   const cacheMode = context.cacheMode || "prefer";

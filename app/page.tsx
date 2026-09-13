@@ -193,14 +193,14 @@ export default function Home() {
           <button className={`nav-item ${activeSection === "indicators" ? "active" : ""}`} onClick={() => setActiveSection("indicators")}>Indicadores</button>
           <button className={`nav-item ${activeSection === "active-search" ? "active" : ""}`} onClick={() => setActiveSection("active-search")}>Busca ativa</button>
           <button className={`nav-item ${activeSection === "territory" ? "active" : ""}`} onClick={() => setActiveSection("territory")}>Território</button>
-          {identity.role === "admin" && <a className="nav-item nav-link" href={appPath("/admin/municipios")}>Municípios / PEC</a>}
+          {identity.role === "admin" && <><span className="nav-label settings-label">CONFIGURAÇÕES</span><a className="nav-item nav-link" href={appPath("/admin/municipios")}>Configurações</a></>}
         </nav>
         <div className="sidebar-footer">
           <span>Município ativo</span>
           <select className="municipality-select" value={identity.municipalityId} onChange={(event) => void changeMunicipality(event.target.value)}>
             {municipalities.map((municipality) => <option value={municipality.id} key={municipality.id}>{municipality.name} - {municipality.state_code} · {municipality.ibge_code}</option>)}
           </select>
-          <span className="profile-line">{identity.role}{identity.nominalAccess ? " · nominal habilitado" : ""}</span>
+          <span className="profile-line">{identity.role}</span>
           <button className="logout-button" onClick={logout}>Sair</button>
         </div>
       </aside>
@@ -217,7 +217,7 @@ export default function Home() {
             <div className="messages">{messages.map((message, index) => <article className={`message ${message.role}`} key={`${message.role}-${index}`}><div className="avatar">{message.role === "user" ? "G" : "✦"}</div><div className="message-body"><div className="message-author">{message.role === "user" ? "Você" : "CBAItyhy IA"}</div><div className="message-content">{message.role === "assistant" ? <MarkdownMessage content={message.content} /> : message.content}</div>{message.presentation && <DataPresentation presentation={message.presentation} />}{message.sources && message.sources.length > 0 && <div className="sources"><span>Fontes consultadas</span>{message.sources.slice(0, 5).map((source) => source.url ? <a key={source.id} href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : <span className="source-chip" key={source.id}>{source.title}</span>)}</div>}</div></article>)}{loading && <article className="message assistant"><div className="avatar">✦</div><div className="message-body"><div className="thinking">Consultando dados e analisando evidências…</div></div></article>}</div>
           )}
         </div>
-        <div className="composer-wrap"><form className="composer" onSubmit={submit}><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (canSend) void send(); } }} placeholder={`Pergunte sobre ${identity.municipalityName}…`} rows={1} /><button type="submit" disabled={!canSend}>↑</button></form><small>Consultas assistenciais usam somente tools SQL homologadas e a conexão PEC do município ativo.</small></div></> : <div className="module-scroll"><ManagementModule key={identity.municipalityId} view={activeSection} municipalityName={identity.municipalityName} nominalAccess={identity.nominalAccess} /></div>}
+        <div className="composer-wrap"><form className="composer" onSubmit={submit}><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (canSend) void send(); } }} placeholder={`Pergunte sobre ${identity.municipalityName}…`} rows={1} /><button type="submit" disabled={!canSend}>↑</button></form><small>Consultas assistenciais usam somente tools SQL homologadas e a conexão PEC do município ativo.</small></div></> : <div className="module-scroll"><ManagementModule key={identity.municipalityId} view={activeSection} municipalityName={identity.municipalityName} /></div>}
       </section>
     </main>
   );

@@ -19,7 +19,6 @@ type ToolResult = {
 type Props = {
   view: ManagementView;
   municipalityName: string;
-  nominalAccess: boolean;
 };
 
 const indicatorColors = ["blue", "green", "rose", "violet", "blue", "amber", "rose"] as const;
@@ -123,6 +122,12 @@ function Overview({ municipalityName }: { municipalityName: string }) {
     finally { setLoading(false); }
   }
 
+  useEffect(() => {
+    void load();
+  // O componente é remontado quando o município ativo muda.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const audit = results.tool_auditoria_cadastros?.rows || [];
   const pregnant = results.tool_censo_gestantes?.rows || [];
   const hypertension = results.tool_indicador_hipertensao?.rows || [];
@@ -192,13 +197,21 @@ function Indicators({ municipalityName }: { municipalityName: string }) {
   return <div className="module-page"><ModuleHeader eyebrow="INDICADORES FEDERAIS · CÁLCULO LOCAL" title={groupTitle} description="Cálculos gerenciais baseados nas fichas técnicas do Ministério da Saúde. O painel identifica claramente resultados parciais até a conciliação com o SIAPS/Saúde 360." municipalityName={municipalityName} /><nav className="indicator-tabs">{indicatorGroups.map((item) => <button key={item.id} className={group === item.id ? "active" : ""} onClick={() => changeGroup(item.id)}>{item.label}</button>)}</nav><div className="methodology-alert"><strong>PEC conectado</strong><span>Os resultados disponíveis usam o cache diário de {municipalityName}. Indicadores incompletos continuam identificados como recortes parciais e não substituem o resultado oficial.</span></div><div className="indicator-grid">{indicatorTools.map((item) => { const summary = indicatorSummary(item, results[item.id]); return <button className={`indicator-card ${item.color} ${selected === item.id ? "selected" : ""}`} key={item.id} onClick={() => void run(item)} disabled={Boolean(loading)}><span className="indicator-code">{item.id}</span><span className={`indicator-status ${item.toolId ? "available" : "pending"}`}>{item.toolId ? (results[item.id]?.cache?.hit ? "Cache diário" : "Recorte parcial") : "Mapeamento pendente"}</span><strong>{item.title}</strong>{summary ? <div className="indicator-summary"><b>{summary.value}</b><span>{summary.detail}</span></div> : <small>{item.description}</small>}<em>{loading === item.id ? "Carregando…" : item.toolId ? "Ver detalhamento por equipe →" : "Ver metodologia →"}</em></button>; })}</div><section className="practice-panel"><header><div><span>{selectedIndicator.id}</span><strong>{selectedIndicator.title}</strong></div><small>{weights.length ? "Pontuação metodológica: 100" : selectedIndicator.unit || "Indicador"}</small></header>{weights.length ? <div className="practice-grid">{weights.map((practice) => <article key={practice.code}><span>{practice.code}</span><p>{practice.label}</p><strong>{practice.points} pts</strong></article>)}</div> : <div className="formula-detail"><p>{formula}</p>{selectedIndicator.ranges && <small>{selectedIndicator.ranges}</small>}<span>Dados necessários: {selectedIndicator.requiredDomains.join(" · ")}</span></div>}</section>{loading && <div className="module-loading">Carregando o resultado armazenado do PEC…</div>}{error && <div className="module-alert">{error}</div>}{selectedResult && <ResultTable result={selectedResult} />}</div>;
 }
 
-function ActiveSearch({ municipalityName, nominalAccess }: { municipalityName: string; nominalAccess: boolean }) {
+function ActiveSearch({ municipalityName }: { municipalityName: string }) {
   const [result, setResult] = useState<ToolResult | null>(null);
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
   const [ine, setIne] = useState("");
+  const [name, setName] = useState("");
+  const [teams, setTeams] = useState<Record<string, unknown>[]>([]);
+  useEffect(() => {
+    let active = true;
+    void requestTool("tool_listar_esf").then((data) => { if (active) setTeams(data.rows); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [municipalityName]);
   async function run(id: string, parameters: Record<string, string | null>) { setLoading(id); setError(""); setResult(null); try { setResult(await requestTool(id, parameters)); } catch (err) { setError(err instanceof Error ? err.message : "Falha na busca ativa."); } finally { setLoading(""); } }
-  return <div className="module-page"><ModuleHeader eyebrow="CUIDADO PRIORITÁRIO" title="Busca ativa" description="Listas operacionais protegidas para apoiar o acompanhamento das equipes." municipalityName={municipalityName} />{!nominalAccess && <div className="permission-card"><strong>Acesso nominal não habilitado</strong><p>Seu perfil pode consultar indicadores agregados, mas não pode visualizar listas de pessoas. Solicite a habilitação a um administrador.</p></div>}<div className="active-search-grid"><article className="action-card"><span className="action-icon">G</span><div><strong>Gestantes com pré-natal atrasado</strong><p>Pessoas com registro recente de gestação e mais de 30 dias sem consulta.</p></div><button disabled={!nominalAccess || Boolean(loading)} onClick={() => void run("tool_busca_ativa_gestantes_atraso", {})}>{loading === "tool_busca_ativa_gestantes_atraso" ? "Consultando…" : "Gerar lista"}</button></article><article className="action-card"><span className="action-icon">60+</span><div><strong>Idosos sem acompanhamento</strong><p>Pessoas com 60 anos ou mais sem atendimento registrado nos últimos 12 meses.</p><label>INE da equipe (opcional)<input value={ine} onChange={(event) => setIne(event.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="Digite o INE" /></label></div><button disabled={!nominalAccess || Boolean(loading)} onClick={() => void run("tool_busca_ativa_idosos", { ine: ine || null })}>{loading === "tool_busca_ativa_idosos" ? "Consultando…" : "Gerar lista"}</button></article></div>{error && <div className="module-alert">{error}</div>}{result && <ResultTable result={result} />}</div>;
+  const teamFilter = <label>eSF <span>opcional</span><select value={ine} onChange={(event) => setIne(event.target.value)}><option value="">Todas as eSF</option>{teams.map((team) => <option key={String(team.ine)} value={String(team.ine)}>{String(team.equipe)} · {String(team.ine)}</option>)}</select></label>;
+  return <div className="module-page"><ModuleHeader eyebrow="CUIDADO PRIORITÁRIO" title="Busca ativa" description="Listas operacionais para gestores acompanharem pessoas e equipes do município." municipalityName={municipalityName} /><div className="active-search-filter">{teamFilter}</div><div className="active-search-grid"><article className="action-card"><span className="action-icon">G</span><div><strong>Gestantes com pré-natal atrasado</strong><p>Pessoas com registro recente de gestação e mais de 30 dias sem consulta.</p></div><button disabled={Boolean(loading)} onClick={() => void run("tool_busca_ativa_gestantes_atraso", { ine: ine || null })}>{loading === "tool_busca_ativa_gestantes_atraso" ? "Consultando…" : "Gerar lista"}</button></article><article className="action-card"><span className="action-icon">60+</span><div><strong>Idosos sem acompanhamento</strong><p>Pessoas com 60 anos ou mais sem atendimento registrado nos últimos 12 meses.</p></div><button disabled={Boolean(loading)} onClick={() => void run("tool_busca_ativa_idosos", { ine: ine || null })}>{loading === "tool_busca_ativa_idosos" ? "Consultando…" : "Gerar lista"}</button></article><article className="action-card duplicate-card"><span className="action-icon">2×</span><div><strong>Possíveis cadastros duplicados</strong><p>Pesquisa nome, CPF, CNS, nascimento e mãe; inclui cadastros inativos e recomenda o registro principal.</p><label>Nome do cidadão<input value={name} onChange={(event) => setName(event.target.value.slice(0, 100))} placeholder="Digite ao menos 3 caracteres" /></label></div><button disabled={Boolean(loading) || name.trim().length < 3} onClick={() => void run("tool_busca_duplicidades_cadastrais", { nome: name })}>{loading === "tool_busca_duplicidades_cadastrais" ? "Analisando…" : "Pesquisar duplicidades"}</button></article></div>{error && <div className="module-alert">{error}</div>}{result && <ResultTable result={result} />}</div>;
 }
 
 function Territory({ municipalityName }: { municipalityName: string }) {
@@ -214,6 +227,6 @@ function Territory({ municipalityName }: { municipalityName: string }) {
 export function ManagementModule(props: Props) {
   if (props.view === "overview") return <Overview municipalityName={props.municipalityName} />;
   if (props.view === "indicators") return <Indicators municipalityName={props.municipalityName} />;
-  if (props.view === "active-search") return <ActiveSearch municipalityName={props.municipalityName} nominalAccess={props.nominalAccess} />;
+  if (props.view === "active-search") return <ActiveSearch municipalityName={props.municipalityName} />;
   return <Territory municipalityName={props.municipalityName} />;
 }

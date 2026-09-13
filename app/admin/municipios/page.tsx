@@ -161,7 +161,7 @@ export default function MunicipalitiesAdminPage() {
   return (
     <main className="admin-page">
       <header className="admin-header">
-        <div><span className="eyebrow">ADMINISTRAÇÃO</span><h1>Municípios e integração PEC</h1><p>Gerencie os municípios e a conexão PostgreSQL READ ONLY do e-SUS PEC.</p></div>
+        <div><span className="eyebrow">CONFIGURAÇÕES</span><h1>Configurações do sistema</h1><p>Cadastre municípios e gerencie, em um só lugar, a conexão segura com o e-SUS PEC.</p></div>
         <div className="admin-actions"><a href={appPath("/")}>← Assistente IA</a><button onClick={() => setCreating((value) => !value)}>+ Adicionar município</button></div>
       </header>
 
@@ -194,7 +194,7 @@ export default function MunicipalitiesAdminPage() {
           {!selected ? <div className="empty-admin"><h2>Selecione um município</h2><p>Escolha um município à esquerda para configurar o PostgreSQL do PEC.</p></div> : (
             <form onSubmit={saveConnection}>
               <div className="card-head"><div><h2>{selected.name}</h2><span>{selected.state_code} · IBGE {selected.ibge_code}</span></div><span className={`pec-badge ${selected.pec?.last_test_status || "pending"}`}>{selected.pec?.last_test_status === "success" ? "Conectado" : selected.pec?.last_test_status === "error" ? "Erro" : "Pendente"}</span></div>
-              <h3>Integração e-SUS PEC</h3>
+              <h3>Conexão do município com o e-SUS PEC</h3>
               <div className="form-grid">
                 <label className="wide">Host PostgreSQL<input value={form.host} onChange={(e) => setForm({ ...form, host: e.target.value })} placeholder="10.0.0.10 ou pec.municipio.gov.br" required /></label>
                 <label>Porta<input type="number" value={form.port} onChange={(e) => setForm({ ...form, port: e.target.value })} required /></label>

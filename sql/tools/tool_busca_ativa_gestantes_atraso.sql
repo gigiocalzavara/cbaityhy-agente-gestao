@@ -1,8 +1,12 @@
-WITH gestantes_ativas AS (
+WITH parametros AS (
+    SELECT $1::varchar AS ine_filtro
+),
+gestantes_ativas AS (
     SELECT 
         c.no_cidadao,
         concat(substr(c.nu_cpf, 1, 3), '.***.***-', substr(c.nu_cpf, 10, 2)) AS cpf_protegido,
         coalesce(c.nu_telefone_celular, c.nu_telefone_contato, 'Sem telefone') AS telefone,
+        cve.nu_ine,
         eq.no_equipe AS equipe,
         MAX(fat.dt_inicial_atendimento) AS dt_ultima_consulta,
         MAX(CASE WHEN coalesce(fat.nu_idade_gestacional_semanas, 0) > 0 THEN fat.nu_idade_gestacional_semanas END) AS ig_registrada,
@@ -19,7 +23,7 @@ WITH gestantes_ativas AS (
       )
       AND coalesce(cve.st_saida_cadastro_obito, 0) = 0
       AND coalesce(cve.st_saida_cadastro_territorio, 0) = 0
-    GROUP BY c.no_cidadao, c.nu_cpf, c.nu_telefone_celular, c.nu_telefone_contato, eq.no_equipe
+    GROUP BY c.no_cidadao, c.nu_cpf, c.nu_telefone_celular, c.nu_telefone_contato, cve.nu_ine, eq.no_equipe
 )
 SELECT ga.no_cidadao AS gestante,
        ga.cpf_protegido,
@@ -31,6 +35,8 @@ SELECT ga.no_cidadao AS gestante,
             concat(round(ga.ig_registrada + (date_part('day', NOW() - ga.dt_registro_ig) / 7.0)), ' semanas')
             ELSE 'Não informada' END AS idade_gestacional_estimada
 FROM gestantes_ativas ga
+CROSS JOIN parametros p
 WHERE ga.dt_ultima_consulta < NOW() - INTERVAL '30 days'
+  AND (p.ine_filtro IS NULL OR ga.nu_ine = p.ine_filtro)
 ORDER BY dias_sem_consulta DESC
 LIMIT 15;
