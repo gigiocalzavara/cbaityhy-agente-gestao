@@ -85,6 +85,7 @@ export async function refreshAllActiveSearchCaches() {
   for (const municipality of cities) {
     const runId = await createRun(municipality, targets.length);
     let completed = 0, failed = 0, rowCount = 0;
+    const errors: string[] = [];
     for (const target of targets) {
       try {
         const result = await executeTool(target.id, target.parameters, {
@@ -96,11 +97,13 @@ export async function refreshAllActiveSearchCaches() {
         report.push({ municipalityId: municipality.id, toolId: target.id, status: "success", rowCount: result.rowCount });
       } catch (error) {
         failed += 1;
-        report.push({ municipalityId: municipality.id, toolId: target.id, status: "error", message: error instanceof Error ? error.message : "FAILED" });
+        const message = error instanceof Error ? error.message : "FAILED";
+        errors.push(`${target.id}: ${message}`);
+        report.push({ municipalityId: municipality.id, toolId: target.id, status: "error", message });
       }
       await patchRun(runId, { completed_tasks: completed, failed_tasks: failed, row_count: rowCount });
     }
-    await patchRun(runId, { status: failed ? (completed ? "partial" : "error") : "success", finished_at: new Date().toISOString() });
+    await patchRun(runId, { status: failed ? (completed ? "partial" : "error") : "success", error_message: errors.length ? errors.join(" · ").slice(0, 1000) : null, finished_at: new Date().toISOString() });
   }
   return { municipalities: cities.length, targets: targets.length, report };
 }
