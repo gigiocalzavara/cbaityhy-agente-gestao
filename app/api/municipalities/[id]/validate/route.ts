@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listAccessibleMunicipalities, requireManagementIdentity } from "@/lib/auth";
+import { listAccessibleMunicipalities, requireCbaityhyAdmin } from "@/lib/auth";
 import { validatePecToolCatalog } from "@/lib/pec-validator";
 
 export async function POST(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
