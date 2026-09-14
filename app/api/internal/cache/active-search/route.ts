@@ -17,13 +17,16 @@ export async function POST(request: NextRequest) {
   }
 
   refreshInProgress = true;
-  void refreshAllActiveSearchCaches()
-    .catch((error) => {
-      console.error("ACTIVE_SEARCH_BACKGROUND_REFRESH_FAILED", error);
-    })
-    .finally(() => {
-      refreshInProgress = false;
-    });
+  // Entrega o 202 ao proxy antes de abrir SSH ou iniciar consultas pesadas.
+  setTimeout(() => {
+    void refreshAllActiveSearchCaches()
+      .catch((error) => {
+        console.error("ACTIVE_SEARCH_BACKGROUND_REFRESH_FAILED", error);
+      })
+      .finally(() => {
+        refreshInProgress = false;
+      });
+  }, 1_000);
 
   return NextResponse.json(
     { accepted: true, status: "processing", monitor: "/admin/processamentos" },
