@@ -12,6 +12,8 @@ type Identity = {
   municipalityName: string;
   role: string;
   nominalAccess: boolean;
+  staffRole: "cbaityhy_admin" | "cbaityhy_analyst" | null;
+  isCbaityhyStaff: boolean;
 };
 
 type Municipality = { id: string; name: string; state_code: string; ibge_code: string; pec?: { last_test_status?: string | null } | null };
