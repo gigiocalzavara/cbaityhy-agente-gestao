@@ -181,7 +181,7 @@ export default function Home() {
 
   const currentMunicipality = municipalities.find((item) => item.id === identity.municipalityId);
   const pecConnected = currentMunicipality?.pec?.last_test_status === "success";
-  const sectionTitles = { assistant: "Assistente de Gestão APS", overview: "Visão geral", indicators: "Indicadores", "active-search": "Busca ativa", territory: "Território" };
+  const sectionTitles = { assistant: "Assistente de Gestão APS", overview: "Visão geral", "registration-links": "Cadastro e vínculos", indicators: "Indicadores", "active-search": "Busca ativa", territory: "Território" };
 
   return (
     <main className="app-shell">
@@ -192,6 +192,7 @@ export default function Home() {
           <span className="nav-label">GESTÃO</span>
           <button className={`nav-item ${activeSection === "assistant" ? "active" : ""}`} onClick={() => setActiveSection("assistant")}>Assistente IA</button>
           <button className={`nav-item ${activeSection === "overview" ? "active" : ""}`} onClick={() => setActiveSection("overview")}>Visão geral</button>
+          <button className={`nav-item ${activeSection === "registration-links" ? "active" : ""}`} onClick={() => setActiveSection("registration-links")}>Cadastro e vínculos</button>
           <button className={`nav-item ${activeSection === "indicators" ? "active" : ""}`} onClick={() => setActiveSection("indicators")}>Indicadores</button>
           <button className={`nav-item ${activeSection === "active-search" ? "active" : ""}`} onClick={() => setActiveSection("active-search")}>Busca ativa</button>
           <button className={`nav-item ${activeSection === "territory" ? "active" : ""}`} onClick={() => setActiveSection("territory")}>Território</button>
