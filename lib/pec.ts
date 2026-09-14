@@ -50,7 +50,7 @@ export async function executeReadOnlyQuery<T extends QueryResultRow = Record<str
   const pooledClient = sshClient ? null : await (await getPool(municipalityId)).connect();
   const client = sshClient || pooledClient!;
   const configuredTimeout = options.timeoutMs ?? Number(process.env.PEC_PG_STATEMENT_TIMEOUT_MS || 30_000);
-  const timeout = Math.max(1_000, Math.min(configuredTimeout, 120_000));
+  const timeout = Math.max(1_000, Math.min(configuredTimeout, 900_000));
 
   try {
     await client.query("BEGIN READ ONLY");
