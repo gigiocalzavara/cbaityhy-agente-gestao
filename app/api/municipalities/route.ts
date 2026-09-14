@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listAccessibleMunicipalities, requireManagementIdentity } from "@/lib/auth";
+import { listAccessibleMunicipalities, requireCbaityhyAdmin } from "@/lib/auth";
 import { operationalFetch } from "@/lib/operational-supabase";
 import { getPecConnectionSummary } from "@/lib/pec-connections";
 
