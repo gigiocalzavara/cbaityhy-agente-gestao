@@ -40,6 +40,7 @@ function numberValue(value: unknown) {
 }
 
 const indicatorMetricColumns: Record<string, { numerator: string; denominator: string }> = {
+  C1: { numerator: "atendimentos_programados", denominator: "total_atendimentos" },
   C2: { numerator: "com_esquema_completo", denominator: "total_criancas_elegiveis" },
   C3: { numerator: "total_gestantes_ativas", denominator: "total_gestantes_ativas" },
   C4: { numerator: "diabeticos_com_hba1c_6m", denominator: "total_diabeticos_ativos" },
@@ -48,6 +49,9 @@ const indicatorMetricColumns: Record<string, { numerator: string; denominator: s
   C7: { numerator: "mulheres_com_preventivo_36m", denominator: "total_mulheres_elegiveis" },
   B1: { numerator: "pessoas_primeira_consulta", denominator: "pessoas_vinculadas_referencia" },
   B2: { numerator: "pessoas_tratamento_concluido", denominator: "pessoas_primeira_consulta" },
+  B3: { numerator: "total_exodontias", denominator: "total_procedimentos_elegiveis" },
+  B5: { numerator: "procedimentos_preventivos", denominator: "total_procedimentos_odontologicos" },
+  B6: { numerator: "procedimentos_tra_art", denominator: "total_procedimentos_restauradores" },
 };
 
 function indicatorSummary(indicator: OfficialIndicator, result?: ToolResult) {
@@ -55,8 +59,8 @@ function indicatorSummary(indicator: OfficialIndicator, result?: ToolResult) {
   const metric = indicatorMetricColumns[indicator.id];
   if (!metric) return null;
   const rows = result.rows.filter((row) => row.equipe !== "TOTAL MUNICIPAL");
-  if (!rows.length && (indicator.id === "B1" || indicator.id === "B2")) {
-    return { value: "—", detail: "Sem produção odontológica para o município ativo neste mês" };
+  if (!rows.length && (indicator.id.startsWith("B") || indicator.id === "C1")) {
+    return { value: "—", detail: indicator.id === "C1" ? "Sem atendimentos elegíveis no município ativo neste mês" : "Sem produção odontológica elegível no município ativo neste mês" };
   }
   const denominator = rows.reduce((total, row) => total + numberValue(row[metric.denominator]), 0);
   const numerator = rows.reduce((total, row) => total + numberValue(row[metric.numerator]), 0);
