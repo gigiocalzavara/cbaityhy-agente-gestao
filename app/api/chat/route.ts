@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireManagementIdentity } from "@/lib/auth";
-import { runManagementAgent } from "@/lib/agent";
+import { runManagementAgent } from "@/lib/agent";\nimport { operationalFetch } from "@/lib/operational-supabase";
 
 export async function POST(request: NextRequest) {
   try {
     const identity = await requireManagementIdentity();
-    const body = await request.json();
+    const settingsResponse = await operationalFetch(`/rest/v1/municipalities?select=ai_enabled&id=eq.${encodeURIComponent(identity.municipalityId)}&limit=1`);\n    const settings = settingsResponse.ok ? await settingsResponse.json() as Array<{ ai_enabled: boolean }> : [];\n    if (settings[0]?.ai_enabled === false) return NextResponse.json({ message: \"O Assistente IA está indisponível para este município. Os painéis, indicadores e buscas ativas continuam disponíveis.\" }, { status: 403 });\n    const body = await request.json();
     const message = String(body.message || "").trim();
     const history = Array.isArray(body.history) ? body.history : [];
 
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       message,
       history,
       context: {
-        organizationId: identity.organizationId,
+        authUserId: identity.authUserId,\n        organizationId: identity.organizationId,
         municipalityId: identity.municipalityId,
         municipalityName: identity.municipalityName,
         municipalityIbgeCode: identity.municipalityIbgeCode,
