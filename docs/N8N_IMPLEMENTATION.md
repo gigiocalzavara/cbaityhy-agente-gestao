@@ -1,5 +1,7 @@
 # Implementação no n8n
 
+> **Status:** referência experimental/legada. O núcleo web em produção executa autenticação, RAG, function calling e SQL no Next.js. Este fluxo não deve ser tratado como parte obrigatória do deploy atual; preserve-o apenas para uma eventual integração futura com WhatsApp/Evolution.
+
 ## Workflow principal
 
 Sequência recomendada de nós:

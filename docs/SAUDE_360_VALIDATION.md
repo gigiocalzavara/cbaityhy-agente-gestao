@@ -22,3 +22,18 @@ Os resultados calculados diretamente no PEC são **prévias locais**. O sistema 
 Versão-base: notas C1–C7 do Ministério da Saúde atualizadas em 24/06/2026. Pesos, janelas e populações estão em `config/saude-360-indicators.json`.
 
 O mesmo protocolo se aplica aos indicadores de Saúde Bucal B1–B6, versão de 15/05/2026, e eMulti M1–M2, versão de 01/07/2026. As fórmulas e faixas estão em `config/oral-health-indicators.json` e `config/emulti-indicators.json`.
+
+## Registro mínimo de uma homologação
+
+Para cada município e indicador, registre fora do código:
+
+- versão/commit da aplicação;
+- versão do PEC e banco consultado;
+- competência e data/hora da extração;
+- INE, numerador, denominador e resultado local;
+- valor correspondente no SIAPS/Saúde 360;
+- diferença absoluta e explicação;
+- responsável pela conferência;
+- decisão de manter `partial`, promover a `ready` ou `validated`.
+
+No B1, documente também a eSB, a eSF/eAP de referência escolhida e a população vinculada usada como denominador. No cache, compare o `generated_at` com a data de extração oficial para evitar conciliar competências diferentes.
