@@ -55,7 +55,7 @@ export async function openSshForward(config:SshTunnelConfig, targetHost:string, 
       };
       const timer = setTimeout(() => finish(() => reject(new Error(
         `SSH_FORWARD_TIMEOUT: o servidor SSH não alcançou ${targetHost}:${targetPort} em 30 segundos`,
-      ))), 10_000);
+      ))), 30_000);
       ssh.forwardOut("127.0.0.1",0,targetHost,targetPort,(error,channel) => finish(() => {
         if (error) {
           reject(new Error(`SSH_FORWARD_FAILED: ${error.message}`));
