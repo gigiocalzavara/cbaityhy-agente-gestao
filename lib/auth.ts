@@ -12,6 +12,8 @@ export type ManagementIdentity = {
   municipalityIbgeCode: string;
   role: AccessRole;
   nominalAccess: boolean;
+  staffRole: "cbaityhy_admin" | "cbaityhy_analyst" | null;
+  isCbaityhyStaff: boolean;
 };
 
 type Profile = {
@@ -22,6 +24,8 @@ type Profile = {
   role: AccessRole;
   nominal_access: boolean;
   active: boolean;
+  staff_role: "cbaityhy_admin" | "cbaityhy_analyst" | null;
+  can_access_all_municipalities: boolean;
 };
 
 type Municipality = { id: string; organization_id: string; name: string; ibge_code: string; state_code: string; status: string };
@@ -46,7 +50,7 @@ async function getBaseIdentity() {
 
 export async function listAccessibleMunicipalities() {
   const { user, profile } = await getBaseIdentity();
-  if (profile.role === "admin") {
+  if (profile.staff_role || profile.can_access_all_municipalities) {
     const response = await operationalFetch(`/rest/v1/municipalities?select=id,organization_id,name,ibge_code,state_code,status&organization_id=eq.${encodeURIComponent(profile.organization_id)}&status=eq.active&deleted_at=is.null&order=name.asc`);
     if (!response.ok) throw new Error("Falha ao listar municípios.");
     return { user, profile, municipalities: await response.json() as Municipality[] };
@@ -78,6 +82,8 @@ export async function requireManagementIdentity(): Promise<ManagementIdentity> {
     municipalityIbgeCode: municipality.ibge_code,
     role: profile.role,
     nominalAccess: Boolean(profile.nominal_access),
+    staffRole: profile.staff_role || null,
+    isCbaityhyStaff: Boolean(profile.staff_role),
   };
 }
 
