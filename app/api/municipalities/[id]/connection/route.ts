@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireManagementIdentity, listAccessibleMunicipalities } from "@/lib/auth";
+import { requireCbaityhyAdmin, listAccessibleMunicipalities } from "@/lib/auth";
 import { getPecConnection, getPecConnectionSummary, savePecConnection, testPecConnection, updatePecTestStatus } from "@/lib/pec-connections";
 import { invalidateMunicipalityPool } from "@/lib/pec";
 
