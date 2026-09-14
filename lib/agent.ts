@@ -67,6 +67,7 @@ export async function runManagementAgent({ message, history = [], context }: Age
     `O contexto autorizado é o município ${context.municipalityName}.`,
     "Use as funções homologadas quando a pergunta exigir dados reais do PEC.",
     "Escolha primeiro uma função homologada específica. Use tool_consulta_agregada_dinamica somente quando nenhuma função homologada responder à pergunta e apenas para resultados agregados não nominais.",
+    "Quando a pergunta pedir uma visão geral de uma área com vários indicadores, consulte em paralelo todas as funções homologadas relevantes antes de sintetizar a resposta.",
     "Nunca invente valores assistenciais, pacientes, percentuais ou resultados de indicadores.",
     "Nunca escreva SQL para o usuário e nunca afirme ter consultado um dado se nenhuma função foi executada.",
     "Para perguntas normativas, use exclusivamente as evidências do RAG fornecidas no contexto; se forem insuficientes, declare a limitação.",
@@ -87,20 +88,24 @@ export async function runManagementAgent({ message, history = [], context }: Age
       },
     ],
     tools,
-    parallel_tool_calls: false,
+    parallel_tool_calls: true,
     max_output_tokens: 1600,
   });
 
   let current = first;
   let lastToolResult: ToolResult | null = null;
   let iterations = 0;
+  let executedCalls = 0;
 
-  while (iterations < 3) {
+  // Perguntas amplas (por exemplo, situação da saúde bucal) podem exigir B1, B2,
+  // B3, B5 e B6. Três rodadas interrompiam a resposta ainda em function_call.
+  while (iterations < 8 && executedCalls < 16) {
     const calls = (current.output || []).filter((item: any) => item.type === "function_call");
     if (!calls.length) break;
 
     const outputs = [];
     for (const call of calls) {
+      executedCalls += 1;
       let args: Record<string, unknown> = {};
       try { args = call.arguments ? JSON.parse(call.arguments) : {}; } catch { args = {}; }
 
@@ -127,14 +132,30 @@ export async function runManagementAgent({ message, history = [], context }: Age
       previous_response_id: current.id,
       input: outputs,
       tools,
-      parallel_tool_calls: false,
+      parallel_tool_calls: true,
       max_output_tokens: 1600,
     });
     iterations += 1;
   }
 
-  const answer = outputText(current).trim();
-  if (!answer) throw new Error("A IA não retornou conteúdo.");
+  let answer = outputText(current).trim();
+  // Alguns modelos podem encerrar uma rodada sem texto mesmo depois de todas as
+  // ferramentas respondidas. Solicita explicitamente a síntese antes de falhar.
+  if (!answer && !(current.output || []).some((item: any) => item.type === "function_call")) {
+    const synthesis = await callResponses({
+      model: process.env.OPENAI_MODEL || "gpt-5.6-luna",
+      previous_response_id: current.id,
+      input: [{ role: "user", content: "Conclua agora com uma resposta executiva em português, sintetizando os resultados já consultados e indicando prioridades operacionais." }],
+      max_output_tokens: 1600,
+    });
+    current = synthesis;
+    answer = outputText(current).trim();
+  }
+  if (!answer) {
+    answer = lastToolResult
+      ? "Os dados do PEC foram consultados, mas a síntese automática não foi concluída. Abra a área **Indicadores** para visualizar os resultados atualizados por equipe e tente novamente em seguida."
+      : "Não consegui concluir esta análise agora. Abra a área **Indicadores** para consultar os resultados disponíveis do município e tente novamente em seguida.";
+  }
   const improvedAnswer = /não foi possível consultar|falha temporária|não consegui (?:consultar|obter)/i.test(answer) && !/área (?:de )?\*\*?Indicadores|seção (?:de )?\*\*?Indicadores/i.test(answer)
     ? `${answer}\n\nEnquanto essa consulta não está disponível, abra **Indicadores** para verificar os resultados assistenciais relacionados e identificar equipes que precisam de atenção.`
     : answer;
