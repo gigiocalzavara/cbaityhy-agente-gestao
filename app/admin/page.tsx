@@ -1,0 +1,14 @@
+"use client";
+import { useEffect, useState } from "react";
+import { appPath } from "@/lib/base-path";
+
+type Data = { municipalities: any[]; runs: any[]; usageByMunicipality: Record<string, any> };
+export default function BackofficeHome() {
+  const [data, setData] = useState<Data | null>(null);
+  const [error, setError] = useState("");
+  async function load(){ const response=await fetch(appPath("/api/admin/overview"),{cache:"no-store"}); const body=await response.json(); if(!response.ok){setError(body.message);return;} setData(body); }
+  useEffect(()=>{void load()},[]);
+  async function toggle(id:string,enabled:boolean){ const reason=enabled?null:"Suspensão administrativa ou contratual"; const response=await fetch(appPath("/api/admin/municipalities/"+id+"/ai"),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled,reason})}); if(response.ok) await load(); }
+  const tokens=Object.values(data?.usageByMunicipality||{}).reduce((sum:any,item:any)=>sum+item.input+item.output,0);
+  return <main className="admin-dashboard"><header><span>BACKOFFICE CBAITYHY</span><h1>Visão administrativa</h1><p>Controle interno de municípios, IA, processamento e consumo.</p></header>{error&&<div className="admin-message">{error}</div>}<div className="admin-kpis"><article><span>Municípios</span><strong>{data?.municipalities.length??"—"}</strong></article><article><span>IA ativa</span><strong>{data?.municipalities.filter(x=>x.ai_enabled!==false).length??"—"}</strong></article><article><span>Processamentos com erro</span><strong>{data?.runs.filter(x=>x.status==="error").length??"—"}</strong></article><article><span>Tokens no mês</span><strong>{Number(tokens).toLocaleString("pt-BR")}</strong></article></div><div className="admin-panels"><section className="admin-panel"><h2>Gestão dos municípios</h2><table className="admin-simple-table"><thead><tr><th>Município</th><th>Situação</th><th>Assistente IA</th></tr></thead><tbody>{data?.municipalities.map(item=><tr key={item.id}><td><strong>{item.name}</strong><br/><small>{item.state_code} · {item.ibge_code}</small></td><td><span className="admin-pill">{item.status}</span></td><td><button className={"admin-toggle "+(item.ai_enabled===false?"off":"")} onClick={()=>void toggle(item.id,item.ai_enabled===false)}>{item.ai_enabled===false?"IA inativa":"IA ativa"}</button></td></tr>)}</tbody></table></section><section className="admin-panel"><h2>Últimos processamentos</h2><table className="admin-simple-table"><thead><tr><th>Rotina</th><th>Situação</th><th>Tarefas</th></tr></thead><tbody>{data?.runs.slice(0,12).map(run=><tr key={run.id}><td>{run.routine==="active_search"?"Buscas ativas":"Indicadores"}</td><td><span className={"admin-pill "+run.status}>{run.status}</span></td><td>{run.completed_tasks}/{run.total_tasks}</td></tr>)}</tbody></table></section></div></main>
+}

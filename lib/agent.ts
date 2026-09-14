@@ -1,6 +1,7 @@
 import "server-only";
 import { retrieveKnowledge } from "@/lib/rag";
 import { executeTool, getToolDefinitions, type ToolExecutionContext } from "@/lib/tool-registry";
+import { operationalFetch } from "@/lib/operational-supabase";
 
 type HistoryMessage = { role: "user" | "assistant"; content: string };
 type ToolResult = Awaited<ReturnType<typeof executeTool>>;
@@ -8,7 +9,7 @@ type ToolResult = Awaited<ReturnType<typeof executeTool>>;
 type AgentInput = {
   message: string;
   history?: HistoryMessage[];
-  context: ToolExecutionContext & { organizationId: string; municipalityName: string };
+  context: ToolExecutionContext & { authUserId: string; organizationId: string; municipalityName: string };
 };
 
 const outputText = (data: any) =>
@@ -58,6 +59,13 @@ function presentationFrom(result?: ToolResult | null) {
 }
 
 export async function runManagementAgent({ message, history = [], context }: AgentInput) {
+  const usage = { input: 0, output: 0, cached: 0, reasoning: 0 };
+  const collectUsage = (response: any) => {
+    usage.input += Number(response?.usage?.input_tokens || 0);
+    usage.output += Number(response?.usage?.output_tokens || 0);
+    usage.cached += Number(response?.usage?.input_tokens_details?.cached_tokens || 0);
+    usage.reasoning += Number(response?.usage?.output_tokens_details?.reasoning_tokens || 0);
+  };
   const { evidence, sources } = await retrieveKnowledge(message, context.municipalityId, context.organizationId);
   const recentHistory = history.slice(-10).map((item) => ({ role: item.role, content: item.content.slice(0, 4000) }));
   const tools = getToolDefinitions();
@@ -92,6 +100,7 @@ export async function runManagementAgent({ message, history = [], context }: Age
     max_output_tokens: 1600,
   });
 
+  collectUsage(first);
   let current = first;
   let lastToolResult: ToolResult | null = null;
   let iterations = 0;
@@ -135,6 +144,7 @@ export async function runManagementAgent({ message, history = [], context }: Age
       parallel_tool_calls: true,
       max_output_tokens: 1600,
     });
+    collectUsage(current);
     iterations += 1;
   }
 
@@ -149,6 +159,7 @@ export async function runManagementAgent({ message, history = [], context }: Age
       max_output_tokens: 1600,
     });
     current = synthesis;
+    collectUsage(synthesis);
     answer = outputText(current).trim();
   }
   if (!answer) {

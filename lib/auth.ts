@@ -12,6 +12,8 @@ export type ManagementIdentity = {
   municipalityIbgeCode: string;
   role: AccessRole;
   nominalAccess: boolean;
+  staffRole: "cbaityhy_admin" | "cbaityhy_analyst" | null;
+  isCbaityhyStaff: boolean;
 };
 
 type Profile = {
@@ -22,6 +24,8 @@ type Profile = {
   role: AccessRole;
   nominal_access: boolean;
   active: boolean;
+  staff_role: "cbaityhy_admin" | "cbaityhy_analyst" | null;
+  can_access_all_municipalities: boolean;
 };
 
 type Municipality = { id: string; organization_id: string; name: string; ibge_code: string; state_code: string; status: string };
@@ -37,7 +41,7 @@ async function getBaseIdentity() {
   });
   if (!userResponse.ok) throw new Error("UNAUTHORIZED");
   const user = await userResponse.json();
-  const profileResponse = await operationalFetch(`/rest/v1/aps_agent_profiles?select=auth_user_id,organization_id,municipality_id,municipality_name,role,nominal_access,active&auth_user_id=eq.${encodeURIComponent(user.id)}&active=eq.true&limit=1`);
+  const profileResponse = await operationalFetch(`/rest/v1/aps_agent_profiles?select=auth_user_id,organization_id,municipality_id,municipality_name,role,nominal_access,active,staff_role,can_access_all_municipalities&auth_user_id=eq.${encodeURIComponent(user.id)}&active=eq.true&limit=1`);
   if (!profileResponse.ok) throw new Error(`Falha ao carregar perfil: ${profileResponse.status}`);
   const profiles = await profileResponse.json() as Profile[];
   if (!profiles[0]) throw new Error("FORBIDDEN");
@@ -46,7 +50,7 @@ async function getBaseIdentity() {
 
 export async function listAccessibleMunicipalities() {
   const { user, profile } = await getBaseIdentity();
-  if (profile.role === "admin") {
+  if (profile.staff_role || profile.can_access_all_municipalities) {
     const response = await operationalFetch(`/rest/v1/municipalities?select=id,organization_id,name,ibge_code,state_code,status&organization_id=eq.${encodeURIComponent(profile.organization_id)}&status=eq.active&deleted_at=is.null&order=name.asc`);
     if (!response.ok) throw new Error("Falha ao listar municípios.");
     return { user, profile, municipalities: await response.json() as Municipality[] };
@@ -78,6 +82,8 @@ export async function requireManagementIdentity(): Promise<ManagementIdentity> {
     municipalityIbgeCode: municipality.ibge_code,
     role: profile.role,
     nominalAccess: Boolean(profile.nominal_access),
+    staffRole: profile.staff_role || null,
+    isCbaityhyStaff: Boolean(profile.staff_role),
   };
 }
 
@@ -91,4 +97,10 @@ export async function signInWithPassword(email: string, password: string) {
   });
   if (!response.ok) throw new Error("INVALID_LOGIN");
   return response.json() as Promise<{ access_token: string; expires_in?: number }>;
+}
+
+export async function requireCbaityhyAdmin() {
+  const identity = await requireManagementIdentity();
+  if (identity.staffRole !== "cbaityhy_admin") throw new Error("FORBIDDEN_CBAITYHY_ADMIN");
+  return identity;
 }

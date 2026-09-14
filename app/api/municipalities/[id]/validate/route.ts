@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listAccessibleMunicipalities, requireManagementIdentity } from "@/lib/auth";
+import { listAccessibleMunicipalities, requireCbaityhyAdmin } from "@/lib/auth";
 import { validatePecToolCatalog } from "@/lib/pec-validator";
 
 export async function POST(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const identity = await requireManagementIdentity();
-    if (identity.role !== "admin") {
-      return NextResponse.json({ message: "Apenas administradores podem validar consultas PEC." }, { status: 403 });
-    }
+    const identity = await requireCbaityhyAdmin();
 
     const { id } = await context.params;
     const { municipalities } = await listAccessibleMunicipalities();

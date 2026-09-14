@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listAccessibleMunicipalities, requireManagementIdentity } from "@/lib/auth";
+import { listAccessibleMunicipalities, requireCbaityhyAdmin } from "@/lib/auth";
 import { operationalFetch } from "@/lib/operational-supabase";
 import { getPecConnectionSummary } from "@/lib/pec-connections";
 
@@ -18,8 +18,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const identity = await requireManagementIdentity();
-    if (identity.role !== "admin") return NextResponse.json({ message: "Apenas administradores podem cadastrar municípios." }, { status: 403 });
+    const identity = await requireCbaityhyAdmin();
     const body = await request.json();
     const name = String(body.name || "").trim();
     const ibgeCode = String(body.ibgeCode || "").replace(/\D/g, "").slice(0, 7);

@@ -12,6 +12,8 @@ type Identity = {
   municipalityName: string;
   role: string;
   nominalAccess: boolean;
+  staffRole: "cbaityhy_admin" | "cbaityhy_analyst" | null;
+  isCbaityhyStaff: boolean;
 };
 
 type Municipality = { id: string; name: string; state_code: string; ibge_code: string; pec?: { last_test_status?: string | null } | null };
@@ -193,7 +195,7 @@ export default function Home() {
           <button className={`nav-item ${activeSection === "indicators" ? "active" : ""}`} onClick={() => setActiveSection("indicators")}>Indicadores</button>
           <button className={`nav-item ${activeSection === "active-search" ? "active" : ""}`} onClick={() => setActiveSection("active-search")}>Busca ativa</button>
           <button className={`nav-item ${activeSection === "territory" ? "active" : ""}`} onClick={() => setActiveSection("territory")}>Território</button>
-          {identity.role === "admin" && <><span className="nav-label settings-label">CONFIGURAÇÕES</span><a className="nav-item nav-link" href={appPath("/admin/municipios")}>Configurações</a></>}
+          {identity.staffRole === "cbaityhy_admin" && <><span className="nav-label settings-label">CBAITYHY</span><a className="nav-item nav-link" href={appPath("/admin")}>Administração</a></>}
         </nav>
         <div className="sidebar-footer">
           <span>Município ativo</span>
