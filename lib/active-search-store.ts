@@ -6,7 +6,7 @@ export async function readActiveSearchCache(municipalityId: string, toolId: stri
   if (!currentResponse.ok) return null;
   const current = (await currentResponse.json() as Array<{ generation_id: string; published_at: string }>)[0];
   if (!current) return null;
-  let path = "/rest/v1/aps_agent_active_search_cache?select=payload&generation_id=eq." + current.generation_id + "&order=citizen_key.asc&limit=500";
+  let path = "/rest/v1/aps_agent_active_search_cache?select=payload&municipality_id=eq." + encodeURIComponent(municipalityId) + "&tool_id=eq." + encodeURIComponent(toolId) + "&generation_id=eq." + encodeURIComponent(current.generation_id) + "&order=citizen_key.asc&limit=500";
   if (parameters.ine) path += "&ine=eq." + encodeURIComponent(parameters.ine);
   const response = await operationalFetch(path);
   if (!response.ok) return null;
