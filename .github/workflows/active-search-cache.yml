@@ -1,0 +1,27 @@
+name: Daily Active Search Cache
+
+on:
+  schedule:
+    # 04:00 America/Sao_Paulo (07:00 UTC)
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: daily-active-search-cache
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Refresh all active-search snapshots
+        env:
+          CACHE_REFRESH_SECRET: ${{ secrets.CACHE_REFRESH_SECRET }}
+        run: |
+          test -n "$CACHE_REFRESH_SECRET"
+          curl --fail-with-body --silent --show-error \
+            --max-time 2400 \
+            -X POST \
+            -H "Authorization: Bearer $CACHE_REFRESH_SECRET" \
+            https://gestaosus.azurratech.com.br/api/internal/cache/active-search
