@@ -4,7 +4,8 @@ import path from "node:path";
 import catalog from "@/config/tool-catalog.json";
 import { executeReadOnlyQuery } from "@/lib/pec";
 import { executeDynamicAggregate } from "@/lib/dynamic-aggregate";
-import { readToolCache, writeToolCache } from "@/lib/tool-cache";\nimport { readActiveSearchCache } from "@/lib/active-search-store";
+import { readToolCache, writeToolCache } from "@/lib/tool-cache";
+import { readActiveSearchCache } from "@/lib/active-search-store";
 
 export type AccessRole = "admin" | "manager" | "municipal_manager" | "coordinator" | "team";
 
@@ -23,7 +24,8 @@ export type ToolExecutionContext = {
   municipalityId: string;
   municipalityIbgeCode: string;
   nominalAccess: boolean;
-  cacheMode?: "prefer" | "refresh" | "bypass";\n  activeSearchRefresh?: boolean;
+  cacheMode?: "prefer" | "refresh" | "bypass";
+  activeSearchRefresh?: boolean;
 };
 
 const tools = new Map((catalog.tools as ToolMeta[]).map((tool) => [tool.id, tool]));
