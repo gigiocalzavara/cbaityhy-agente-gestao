@@ -65,7 +65,10 @@ function indicatorSummary(indicator: OfficialIndicator, result?: ToolResult) {
   const denominator = rows.reduce((total, row) => total + numberValue(row[metric.denominator]), 0);
   const numerator = rows.reduce((total, row) => total + numberValue(row[metric.numerator]), 0);
   if (indicator.id === "C3") return { value: pretty(numerator), detail: "gestantes identificadas" };
-  if (indicator.id === "B1") return { value: pretty(numerator), detail: "pessoas com primeira consulta no mês; denominador populacional pendente" };
+  if (indicator.id === "B1") return {
+    value: denominator ? `${(numerator / denominator * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%` : "—",
+    detail: denominator ? `${pretty(numerator)} primeiras consultas para ${pretty(denominator)} pessoas vinculadas` : "Vínculo populacional da equipe não identificado",
+  };
   return {
     value: denominator ? `${(numerator / denominator * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "—",
     detail: `${pretty(numerator)} de ${pretty(denominator)} pessoas`,

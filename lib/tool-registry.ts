@@ -112,7 +112,7 @@ function describeTool(id: string) {
     tool_censo_gestantes: "Censo agregado de gestantes ativas por equipe. Pode filtrar por INE.",
     tool_busca_territorial_rua: "Censo territorial agregado por logradouro. Requer logradouro e pode filtrar por INE.",
     tool_auditoria_cadastros: "Auditoria de cadastros ativos e atualização cadastral nos últimos 24 meses.",
-    tool_indicador_saude_bucal_b1: "Prévia mensal B1 filtrada pelo IBGE do município ativo: pessoas com primeira consulta odontológica programática por eSB/INE. O denominador populacional ainda não está disponível.",
+    tool_indicador_saude_bucal_b1: "Prévia mensal B1 filtrada pelo município ativo: primeiras consultas odontológicas programáticas divididas pela população ativa da eSF/eAP de referência, por eSB/INE.",
     tool_indicador_saude_bucal_b2: "Prévia mensal B2 filtrada pelo IBGE do município ativo: tratamentos odontológicos concluídos em relação às primeiras consultas programáticas, por eSB/INE.",
     tool_indicador_saude_360_c1: "Prévia mensal C1 filtrada pelo município ativo: atendimentos programados em relação às demandas programadas e espontâneas por INE.",
     tool_indicador_saude_bucal_b3: "Prévia mensal B3: taxa de exodontias permanentes no conjunto oficial de procedimentos elegíveis por eSB/INE.",
