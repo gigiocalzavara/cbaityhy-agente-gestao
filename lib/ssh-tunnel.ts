@@ -26,7 +26,7 @@ export async function openSshForward(config:SshTunnelConfig, targetHost:string, 
   const expected = config.hostFingerprint?.trim().replace(/=+$/, "") || "";
   const connectConfig:ConnectConfig = {
     host, port:config.port, username:config.username, password:config.password,
-    readyTimeout:10_000, keepaliveInterval:10_000, keepaliveCountMax:3,
+    readyTimeout:30_000, keepaliveInterval:10_000, keepaliveCountMax:3,
     hostVerifier: expected ? (key:Buffer) => fingerprint(key) === expected : undefined,
   };
   await new Promise<void>((resolve,reject) => {
@@ -39,8 +39,8 @@ export async function openSshForward(config:SshTunnelConfig, targetHost:string, 
     };
     const timer = setTimeout(() => finish(() => {
       ssh.destroy();
-      reject(new Error(`SSH_CONNECTION_TIMEOUT: ${host}:${config.port} não respondeu em 12 segundos`));
-    }), 12_000);
+      reject(new Error(`SSH_CONNECTION_TIMEOUT: ${host}:${config.port} não respondeu em 35 segundos`));
+    }), 35_000);
     const fail=(error:Error)=>finish(() => reject(new Error(`SSH_CONNECTION_FAILED: ${error.message}`)));
     ssh.once("ready",() => finish(resolve)).once("error",fail).connect(connectConfig);
   });
@@ -54,7 +54,7 @@ export async function openSshForward(config:SshTunnelConfig, targetHost:string, 
         callback();
       };
       const timer = setTimeout(() => finish(() => reject(new Error(
-        `SSH_FORWARD_TIMEOUT: o servidor SSH não alcançou ${targetHost}:${targetPort} em 10 segundos`,
+        `SSH_FORWARD_TIMEOUT: o servidor SSH não alcançou ${targetHost}:${targetPort} em 30 segundos`,
       ))), 10_000);
       ssh.forwardOut("127.0.0.1",0,targetHost,targetPort,(error,channel) => finish(() => {
         if (error) {
