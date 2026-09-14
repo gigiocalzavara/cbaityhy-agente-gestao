@@ -37,7 +37,7 @@ async function getBaseIdentity() {
   });
   if (!userResponse.ok) throw new Error("UNAUTHORIZED");
   const user = await userResponse.json();
-  const profileResponse = await operationalFetch(`/rest/v1/aps_agent_profiles?select=auth_user_id,organization_id,municipality_id,municipality_name,role,nominal_access,active&auth_user_id=eq.${encodeURIComponent(user.id)}&active=eq.true&limit=1`);
+  const profileResponse = await operationalFetch(`/rest/v1/aps_agent_profiles?select=auth_user_id,organization_id,municipality_id,municipality_name,role,nominal_access,active,staff_role,can_access_all_municipalities&auth_user_id=eq.${encodeURIComponent(user.id)}&active=eq.true&limit=1`);
   if (!profileResponse.ok) throw new Error(`Falha ao carregar perfil: ${profileResponse.status}`);
   const profiles = await profileResponse.json() as Profile[];
   if (!profiles[0]) throw new Error("FORBIDDEN");
@@ -91,4 +91,10 @@ export async function signInWithPassword(email: string, password: string) {
   });
   if (!response.ok) throw new Error("INVALID_LOGIN");
   return response.json() as Promise<{ access_token: string; expires_in?: number }>;
+}
+
+export async function requireCbaityhyAdmin() {
+  const identity = await requireManagementIdentity();
+  if (identity.staffRole !== "cbaityhy_admin") throw new Error("FORBIDDEN_CBAITYHY_ADMIN");
+  return identity;
 }
