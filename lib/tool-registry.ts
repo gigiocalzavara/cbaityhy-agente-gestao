@@ -137,6 +137,11 @@ export async function executeTool(toolId: string, rawArguments: Record<string, u
   const { clean, values } = sanitizeArguments(meta, rawArguments);
   if (meta.municipalityScoped) clean.municipality_ibge = context.municipalityIbgeCode;
   const cacheMode = context.cacheMode || "prefer";
+  if (meta.nominal && cacheMode === "prefer" && !context.activeSearchRefresh) {
+    const cached = await readActiveSearchCache(context.municipalityId, toolId, clean);
+    if (cached) return cached;
+    throw new Error("ACTIVE_SEARCH_CACHE_NOT_READY");
+  }
   if (!meta.nominal && cacheMode === "prefer") {
     const cached = await readToolCache(context.municipalityId, toolId, clean);
     if (cached) return cached;
@@ -147,10 +152,10 @@ export async function executeTool(toolId: string, rawArguments: Record<string, u
     ? sqlTemplate.replaceAll("{{MUNICIPALITY_IBGE}}", municipalityPlaceholder)
     : sqlTemplate;
   const queryValues = meta.municipalityScoped ? [...values, context.municipalityIbgeCode] : values;
-  const timeoutMs = toolId === "tool_censo_gestantes" ? 60_000 : 30_000;
+  const timeoutMs = context.activeSearchRefresh ? 600_000 : toolId === "tool_censo_gestantes" ? 60_000 : 30_000;
   const started = Date.now();
   const rows = await executeReadOnlyQuery(context.municipalityId, sql, queryValues, { timeoutMs });
-  const max = meta.nominal ? Number(process.env.DEFAULT_RESULT_LIMIT || 15) : 250;
+  const max = context.activeSearchRefresh ? 20_000 : meta.nominal ? Number(process.env.DEFAULT_RESULT_LIMIT || 15) : 250;
   const selectedRows = rows.slice(0, Math.max(1, Math.min(max, 500)));
   // Nominal tools are already protected by role + nominal_access above. Authorized
   // managers need the identifiers to perform active search; aggregate results keep
