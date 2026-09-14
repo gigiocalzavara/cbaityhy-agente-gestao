@@ -13,8 +13,7 @@ function normalizeNetworkHost(value: unknown) {
 }
 
 async function authorizeMunicipality(id: string) {
-  const identity = await requireManagementIdentity();
-  if (identity.role !== "admin") throw new Error("FORBIDDEN_ADMIN");
+  const identity = await requireCbaityhyAdmin();
   const { municipalities } = await listAccessibleMunicipalities();
   if (!municipalities.some((item) => item.id === id)) throw new Error("FORBIDDEN_MUNICIPALITY");
   return identity;
