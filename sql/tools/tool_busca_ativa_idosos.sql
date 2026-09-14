@@ -41,5 +41,4 @@ LEFT JOIN ultimo_atendimento_idoso uai ON uai.nu_cpf_cidadao = ic.nu_cpf
 CROSS JOIN parametros p
 WHERE (p.ine_filtro IS NULL OR ic.nu_ine = p.ine_filtro)
   AND (uai.dt_ultimo_atendimento IS NULL OR uai.dt_ultimo_atendimento < NOW() - INTERVAL '12 months')
-ORDER BY CASE WHEN uai.dt_ultimo_atendimento IS NULL THEN 0 ELSE 1 END, ic.idade DESC
-LIMIT 15;
+ORDER BY CASE WHEN uai.dt_ultimo_atendimento IS NULL THEN 0 ELSE 1 END, ic.idade DESC;

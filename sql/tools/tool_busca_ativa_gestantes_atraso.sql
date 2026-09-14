@@ -38,5 +38,4 @@ FROM gestantes_ativas ga
 CROSS JOIN parametros p
 WHERE ga.dt_ultima_consulta < NOW() - INTERVAL '30 days'
   AND (p.ine_filtro IS NULL OR ga.nu_ine = p.ine_filtro)
-ORDER BY dias_sem_consulta DESC
-LIMIT 15;
+ORDER BY dias_sem_consulta DESC;
