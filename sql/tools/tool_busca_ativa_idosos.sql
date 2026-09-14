@@ -1,7 +1,7 @@
 WITH parametros AS (
   SELECT $1::varchar AS ine_filtro
 ),
-idosos AS MATERIALIZED (
+idosos AS (
   SELECT DISTINCT ON (c.co_seq_cidadao)
     c.co_seq_cidadao,
     c.no_cidadao,
@@ -22,7 +22,7 @@ idosos AS MATERIALIZED (
     AND (p.ine_filtro IS NULL OR cve.nu_ine = p.ine_filtro)
   ORDER BY c.co_seq_cidadao, cve.nu_ine NULLS LAST
 ),
-ultimo_atendimento AS MATERIALIZED (
+ultimo_atendimento AS (
   SELECT i.co_seq_cidadao, MAX(fat.dt_inicial_atendimento) AS dt_ultimo_atendimento
   FROM idosos i
   LEFT JOIN public.tb_fat_atendimento_individual fat ON fat.nu_cpf_cidadao = i.nu_cpf

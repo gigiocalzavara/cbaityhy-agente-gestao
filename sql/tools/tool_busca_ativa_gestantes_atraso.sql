@@ -1,7 +1,7 @@
 WITH parametros AS (
   SELECT $1::varchar AS ine_filtro
 ),
-eventos_gestacao AS MATERIALIZED (
+eventos_gestacao AS (
   SELECT DISTINCT ON (COALESCE(NULLIF(TRIM(fat.nu_cpf_cidadao), ''), NULLIF(TRIM(fat.nu_cns), '')))
     NULLIF(TRIM(fat.nu_cpf_cidadao), '') AS cpf,
     NULLIF(TRIM(fat.nu_cns), '') AS cns,
@@ -19,7 +19,7 @@ eventos_gestacao AS MATERIALIZED (
     )
   ORDER BY COALESCE(NULLIF(TRIM(fat.nu_cpf_cidadao), ''), NULLIF(TRIM(fat.nu_cns), '')), fat.dt_inicial_atendimento DESC
 ),
-cidadaos_identificados AS MATERIALIZED (
+cidadaos_identificados AS (
   SELECT
     eg.*,
     COALESCE(cpf_c.co_seq_cidadao, cns_c.co_seq_cidadao) AS co_seq_cidadao,
