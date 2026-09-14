@@ -122,6 +122,7 @@ function describeTool(id: string) {
     tool_indicador_saude_bucal_b6: "Prévia mensal B6: proporção de TRA/ART entre procedimentos restauradores por eSB/INE.",
     tool_listar_esf: "Lista agregada das equipes de Saúde da Família ativas do município para aplicação de filtros.",
     tool_busca_duplicidades_cadastrais: "Pesquisa nominal auditável de possíveis cadastros duplicados, incluindo inativos, e recomenda o cadastro demograficamente mais confiável sem alterar o PEC.",
+    tool_cadastro_vinculos: "Painel agregado de cadastro, vínculo e acompanhamento territorial por equipe, com base nas estruturas locais do PEC.",
   };
   return descriptions[id] || id;
 }
