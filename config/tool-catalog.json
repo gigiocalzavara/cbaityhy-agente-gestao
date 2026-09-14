@@ -18,6 +18,7 @@
     {"id":"tool_indicador_saude_bucal_b5","sql":"sql/tools/tool_indicador_saude_bucal_b5.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[],"municipalityScoped":true},
     {"id":"tool_indicador_saude_bucal_b6","sql":"sql/tools/tool_indicador_saude_bucal_b6.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[],"municipalityScoped":true},
     {"id":"tool_listar_esf","sql":"sql/tools/tool_listar_esf.sql","kind":"aggregate","nominal":false,"chart":false,"parameters":[]},
-    {"id":"tool_busca_duplicidades_cadastrais","sql":"sql/tools/tool_busca_duplicidades_cadastrais.sql","kind":"nominal","nominal":true,"chart":false,"parameters":["nome"]}
+    {"id":"tool_busca_duplicidades_cadastrais","sql":"sql/tools/tool_busca_duplicidades_cadastrais.sql","kind":"nominal","nominal":true,"chart":false,"parameters":["nome"]},
+    {"id":"tool_cadastro_vinculos","sql":"sql/tools/tool_cadastro_vinculos.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[]}
   ]
 }

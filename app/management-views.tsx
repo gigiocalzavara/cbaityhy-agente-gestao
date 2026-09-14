@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { appPath } from "@/lib/base-path";
 import { getOfficialIndicators, type IndicatorGroup, type OfficialIndicator } from "@/lib/official-indicators";
 
-export type ManagementView = "overview" | "indicators" | "active-search" | "territory";
+export type ManagementView = "overview" | "registration-links" | "indicators" | "active-search" | "territory";
 
 type ToolResult = {
   toolId: string;
@@ -156,6 +156,44 @@ function Overview({ municipalityName }: { municipalityName: string }) {
   return <div className="module-page"><ModuleHeader eyebrow="PAINEL MUNICIPAL" title="Visão geral" description="Leitura rápida dos principais dados assistenciais e cadastrais do PEC." municipalityName={municipalityName} /><div className="module-toolbar"><p>Os cartões são calculados diretamente no banco PEC do município ativo.</p><button onClick={load} disabled={loading}>{loading ? "Atualizando…" : Object.keys(results).length ? "Atualizar dados" : "Carregar painel"}</button></div>{error && <div className="module-alert">{error}</div>}<div className="kpi-grid"><article className="kpi-card"><span>Cadastros ativos</span><strong>{hasAudit ? pretty(totalRegistrations) : "—"}</strong><small>{hasAudit ? `${percent(validRegistrations, totalRegistrations)} vigentes em 24 meses` : "Aguardando consulta"}</small></article><article className="kpi-card"><span>Gestantes ativas</span><strong>{hasPregnant ? pretty(pregnancyTotal) : "—"}</strong><small>Censo municipal identificado no PEC</small></article><article className="kpi-card"><span>Hipertensão</span><strong>{hasHypertension ? percent(hypertensiveCovered, hypertensiveTotal) : "—"}</strong><small>{hasHypertension ? `${pretty(hypertensiveTotal)} pessoas acompanhadas` : "PA registrada nos últimos 6 meses"}</small></article><article className="kpi-card"><span>Diabetes</span><strong>{hasDiabetes ? percent(diabeticCovered, diabeticTotal) : "—"}</strong><small>{hasDiabetes ? `${pretty(diabeticTotal)} pessoas identificadas` : "HbA1c nos últimos 6 meses"}</small></article></div><section className="module-info-grid"><article><span>01</span><div><strong>Qualidade cadastral</strong><p>Identifique rapidamente equipes com maior volume de cadastros vencidos.</p></div></article><article><span>02</span><div><strong>Cuidado continuado</strong><p>Compare cobertura de hipertensão e diabetes entre as equipes.</p></div></article><article><span>03</span><div><strong>Prioridade operacional</strong><p>Use os módulos de indicadores e busca ativa para aprofundar os achados.</p></div></article></section></div>;
 }
 
+
+function RegistrationLinks({ municipalityName }: { municipalityName: string }) {
+  const [result, setResult] = useState<ToolResult | null>(null);
+  const [selectedIne, setSelectedIne] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    void requestTool("tool_cadastro_vinculos").then((data) => { if (active) setResult(data); }).catch((err) => { if (active) setError(err instanceof Error ? err.message : "Falha ao carregar cadastro e vínculos."); });
+    return () => { active = false; };
+  }, [municipalityName]);
+  const allRows = result?.rows || [];
+  const rows = selectedIne ? allRows.filter((row) => String(row.ine) === selectedIne) : allRows;
+  const sum = (key: string) => rows.reduce((total, row) => total + numberValue(row[key]), 0);
+  const registered = sum("populacao_cadastrada");
+  const linked = sum("cidadaos_vinculados");
+  const individual = sum("cadastros_individuais");
+  const household = sum("cadastros_domiciliares");
+  const ratio = (value: number, total: number) => total ? `${(value / total * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%` : "—";
+  const teams = allRows.filter((row) => String(row.ine || "-") !== "-");
+  return <div className="module-page registration-links-page">
+    <ModuleHeader eyebrow="VÍNCULO E ACOMPANHAMENTO TERRITORIAL" title="Cadastro e vínculos" description="Acompanhe população cadastrada, vínculo com equipes e consistência dos cadastros no PEC." municipalityName={municipalityName} />
+    <div className="registration-filter"><label>Filtrar por equipe<select value={selectedIne} onChange={(event) => setSelectedIne(event.target.value)}><option value="">Todas as equipes</option>{teams.map((row) => <option key={String(row.ine)} value={String(row.ine)}>{String(row.equipe)} · {String(row.ine)}</option>)}</select></label></div>
+    {error && <div className="module-alert">{error}</div>}
+    {!result && !error && <div className="module-loading">Carregando dados armazenados do PEC…</div>}
+    {result && <><div className="registration-hero">
+      <article className="blue"><span>Cidadãos vinculados</span><strong>{pretty(linked)}</strong><small>{ratio(linked, registered)} da população cadastrada</small></article>
+      <article className="green"><span>População cadastrada</span><strong>{pretty(registered)}</strong><small>Registros identificados no acompanhamento territorial</small></article>
+    </div>
+    <div className="registration-kpis">
+      <article><strong>{ratio(individual, registered)}</strong><span>Cadastro individual (FCI)</span><small>{pretty(individual)} de {pretty(registered)}</small></article>
+      <article><strong>{ratio(household, registered)}</strong><span>Cadastro domiciliar/territorial (FCDT)</span><small>{pretty(household)} de {pretty(registered)}</small></article>
+      <article><strong>{ratio(linked, registered)}</strong><span>Vínculo com equipe</span><small>{pretty(linked)} cidadãos vinculados</small></article>
+      <article><strong>{pretty(registered - linked)}</strong><span>Sem vínculo de equipe</span><small>Prioridade para qualificação territorial</small></article>
+    </div>
+    <div className="module-result registration-table"><div className="module-result-head"><span>Qualidade por equipe</span><span>{rows.length} {rows.length === 1 ? "equipe" : "equipes"}</span></div><div className="module-table-wrap"><table><thead><tr><th>Equipe / INE</th><th>CNES</th><th>Cadastro</th><th>Acompanhamento</th><th>Resultado</th></tr></thead><tbody>{rows.map((row, index) => { const score = numberValue(row.escore_final); return <tr key={`${String(row.ine)}-${index}`}><td><strong>{String(row.equipe)}</strong><small>{String(row.ine)}</small></td><td>{pretty(row.cnes)}</td><td><strong>Escore: {pretty(row.escore_cadastro)}</strong><small>{pretty(row.cadastros_individuais)} cadastros individuais</small></td><td><strong>Escore: {pretty(row.escore_acompanhamento)}</strong><small>{pretty(row.cidadaos_vinculados)} vinculados</small></td><td><strong>Escore final: {pretty(row.escore_final)}</strong><span className={`score-badge ${score >= 8 ? "great" : score >= 6 ? "good" : "attention"}`}>{score >= 8 ? "ÓTIMO" : score >= 6 ? "BOM" : "ATENÇÃO"}</span></td></tr>; })}</tbody></table></div></div></>}
+  </div>;
+}
+
 function Indicators({ municipalityName }: { municipalityName: string }) {
   const [group, setGroup] = useState<IndicatorGroup>("aps");
   const indicatorTools = getOfficialIndicators(group).map((indicator, index) => ({ ...indicator, color: indicatorColors[index % indicatorColors.length] }));
@@ -233,6 +271,7 @@ function Territory({ municipalityName }: { municipalityName: string }) {
 
 export function ManagementModule(props: Props) {
   if (props.view === "overview") return <Overview municipalityName={props.municipalityName} />;
+  if (props.view === "registration-links") return <RegistrationLinks municipalityName={props.municipalityName} />;
   if (props.view === "indicators") return <Indicators municipalityName={props.municipalityName} />;
   if (props.view === "active-search") return <ActiveSearch municipalityName={props.municipalityName} />;
   return <Territory municipalityName={props.municipalityName} />;
