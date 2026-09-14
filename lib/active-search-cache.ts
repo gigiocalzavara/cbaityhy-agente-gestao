@@ -45,8 +45,9 @@ async function patchRun(id: string, values: Record<string, unknown>) {
 }
 
 async function insertRows(municipalityId: string, toolId: string, runId: string, rows: Record<string, unknown>[]) {
-  for (let start = 0; start < rows.length; start += 500) {
-    const batch = rows.slice(start, start + 500).map((payload, offset) => ({
+  const uniqueRows = Array.from(new Map(rows.map((payload, index) => [citizenKey(payload, index), payload])).values());
+  for (let start = 0; start < uniqueRows.length; start += 500) {
+    const batch = uniqueRows.slice(start, start + 500).map((payload, offset) => ({
       municipality_id: municipalityId, tool_id: toolId, generation_id: runId,
       citizen_key: citizenKey(payload, start + offset),
       ine: String(payload.ine || payload.nu_ine || "") || null,
@@ -62,6 +63,7 @@ async function insertRows(municipalityId: string, toolId: string, runId: string,
     body: JSON.stringify({ municipality_id: municipalityId, tool_id: toolId, generation_id: runId, published_at: new Date().toISOString() }),
   });
   if (!pointer.ok) throw new Error("ACTIVE_SEARCH_PUBLISH_FAILED");
+  return uniqueRows.length;
 }
 
 export async function readActiveSearchCache(municipalityId: string, toolId: string, parameters: Record<string, string | null>) {
@@ -92,9 +94,9 @@ export async function refreshAllActiveSearchCaches() {
           role: "admin", municipalityId: municipality.id, municipalityIbgeCode: municipality.ibge_code,
           nominalAccess: true, cacheMode: "bypass", activeSearchRefresh: true,
         });
-        await insertRows(municipality.id, target.id, runId, result.rows);
-        completed += 1; rowCount += result.rowCount;
-        report.push({ municipalityId: municipality.id, toolId: target.id, status: "success", rowCount: result.rowCount });
+        const insertedRows = await insertRows(municipality.id, target.id, runId, result.rows);
+        completed += 1; rowCount += insertedRows;
+        report.push({ municipalityId: municipality.id, toolId: target.id, status: "success", rowCount: insertedRows });
       } catch (error) {
         failed += 1;
         const message = error instanceof Error ? error.message : "FAILED";
