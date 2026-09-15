@@ -48,6 +48,11 @@ function sanitizeArguments(meta: ToolMeta, raw: Record<string, unknown>) {
       const normalized = String(value).normalize("NFKC").replace(/[;%'"\\_]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
       clean[parameter] = normalized || null; values.push(normalized || null); continue;
     }
+    if (parameter === "equipe" || parameter === "profissional") {
+      const normalized = String(value).normalize("NFKC").replace(/[;%'"\\_]/g, " ").replace(/\s+/g, " ").trim().slice(0, 100);
+      if (normalized.length < 2) throw new Error(`Informe ao menos 2 caracteres ${parameter === "equipe" ? "da equipe" : "do profissional"}.`);
+      clean[parameter] = normalized; values.push(normalized); continue;
+    }
     if (parameter === "nome") {
       const normalized = String(value).normalize("NFKC").replace(/[;%'"\\_]/g, " ").replace(/\s+/g, " ").trim().slice(0, 100);
       if (normalized.length < 3) throw new Error("Informe ao menos 3 caracteres do nome.");
@@ -81,6 +86,10 @@ export function getToolDefinitions() {
       type: "object",
       properties: Object.fromEntries(tool.parameters.map((parameter) => [parameter, parameter === "ine"
         ? { type: ["string", "null"], description: "INE da equipe, apenas quando explicitamente informado ou já selecionado no contexto." }
+        : parameter === "equipe"
+          ? { type: ["string", "null"], description: "Nome, número ou INE da equipe/ESF informado pelo gestor." }
+        : parameter === "profissional"
+          ? { type: ["string", "null"], description: "Nome completo ou parcial do profissional informado pelo gestor." }
         : parameter === "nome"
           ? { type: ["string", "null"], description: "Nome do cidadão informado pelo gestor, com pelo menos 3 caracteres." }
           : { type: ["string", "null"], description: "Nome do logradouro informado pelo usuário." }])),
@@ -123,6 +132,12 @@ function describeTool(id: string) {
     tool_listar_esf: "Lista agregada das equipes de Saúde da Família ativas do município para aplicação de filtros.",
     tool_busca_duplicidades_cadastrais: "Pesquisa nominal auditável de possíveis cadastros duplicados, incluindo inativos, e recomenda o cadastro demograficamente mais confiável sem alterar o PEC.",
     tool_cadastro_vinculos: "Painel agregado de cadastro, vínculo e acompanhamento territorial por equipe, com base nas estruturas locais do PEC.",
+    tool_resumo_producao_acs: "Produção individual dos agentes comunitários de saúde de uma equipe/ESF no mês e no quadrimestre atuais.",
+    tool_profissionais_equipe: "Relação dos profissionais identificados na produção de uma equipe/ESF, com ocupação e última atividade. Use quando o gestor perguntar quem trabalha ou está cadastrado na equipe.",
+    tool_resumo_equipe_quadrimestre: "Resumo do quadrimestre atual de uma equipe/ESF: população vinculada, atendimentos, pessoas atendidas, hipertensão e aferição de pressão arterial.",
+    tool_producao_profissional_hipertensao: "Atendimentos de pessoas com hipertensão realizados por um profissional específico no mês atual. Pode restringir por equipe/ESF.",
+    tool_afericao_pa_enfermagem: "Produção de aferição de pressão arterial por técnicos e auxiliares de enfermagem no mês atual, por equipe/UBS e profissional.",
+    tool_resumo_cidadao: "Resumo nominal protegido de um cidadão pelo nome: cadastro, vínculo/equipe e histórico gerencial de atendimentos. Não formula hipótese clínica.",
   };
   return descriptions[id] || id;
 }
@@ -133,11 +148,12 @@ export async function executeTool(toolId: string, rawArguments: Record<string, u
   }
   const meta = tools.get(toolId);
   if (!meta) throw new Error("Tool não homologada.");
-  if (meta.nominal && !["admin", "manager", "municipal_manager", "coordinator"].includes(context.role)) throw new Error("FORBIDDEN_NOMINAL");
+  if (meta.nominal && (!context.nominalAccess || !["admin", "manager", "municipal_manager", "coordinator"].includes(context.role))) throw new Error("FORBIDDEN_NOMINAL");
   const { clean, values } = sanitizeArguments(meta, rawArguments);
   if (meta.municipalityScoped) clean.municipality_ibge = context.municipalityIbgeCode;
   const cacheMode = context.cacheMode || "prefer";
-  if (meta.nominal && cacheMode === "prefer" && !context.activeSearchRefresh) {
+  const supportsDailyNominalCache = meta.nominal && meta.parameters.every((parameter) => parameter === "ine");
+  if (supportsDailyNominalCache && cacheMode === "prefer" && !context.activeSearchRefresh) {
     const cached = await readActiveSearchCache(context.municipalityId, toolId, clean);
     if (cached) return cached;
     throw new Error("ACTIVE_SEARCH_CACHE_NOT_READY");

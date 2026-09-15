@@ -19,6 +19,12 @@
     {"id":"tool_indicador_saude_bucal_b6","sql":"sql/tools/tool_indicador_saude_bucal_b6.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[],"municipalityScoped":true},
     {"id":"tool_listar_esf","sql":"sql/tools/tool_listar_esf.sql","kind":"aggregate","nominal":false,"chart":false,"parameters":[]},
     {"id":"tool_busca_duplicidades_cadastrais","sql":"sql/tools/tool_busca_duplicidades_cadastrais.sql","kind":"nominal","nominal":true,"chart":false,"parameters":["nome"]},
-    {"id":"tool_cadastro_vinculos","sql":"sql/tools/tool_cadastro_vinculos.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[]}
+    {"id":"tool_cadastro_vinculos","sql":"sql/tools/tool_cadastro_vinculos.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[]},
+    {"id":"tool_resumo_producao_acs","sql":"sql/tools/tool_resumo_producao_acs.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":["equipe"]},
+    {"id":"tool_profissionais_equipe","sql":"sql/tools/tool_profissionais_equipe.sql","kind":"nominal","nominal":true,"chart":false,"parameters":["equipe"]},
+    {"id":"tool_resumo_equipe_quadrimestre","sql":"sql/tools/tool_resumo_equipe_quadrimestre.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":["equipe"]},
+    {"id":"tool_producao_profissional_hipertensao","sql":"sql/tools/tool_producao_profissional_hipertensao.sql","kind":"nominal","nominal":true,"chart":false,"parameters":["profissional","equipe"]},
+    {"id":"tool_afericao_pa_enfermagem","sql":"sql/tools/tool_afericao_pa_enfermagem.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":["equipe"]},
+    {"id":"tool_resumo_cidadao","sql":"sql/tools/tool_resumo_cidadao.sql","kind":"nominal","nominal":true,"chart":false,"parameters":["nome"]}
   ]
 }
