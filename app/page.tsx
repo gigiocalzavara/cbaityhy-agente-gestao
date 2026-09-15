@@ -4,7 +4,9 @@ import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { appPath } from "@/lib/base-path";
 import "./chat-markdown.css";
 import "./management-views.css";
+import "./export.css";
 import { ManagementModule, type ManagementView } from "./management-views";
+import { ExportButtons } from "./export-buttons";
 
 type Identity = {
   email: string;
@@ -105,11 +107,11 @@ function MarkdownMessage({ content }: { content: string }) {
   return <div className="markdown-content">{blocks}</div>;
 }
 
-function DataPresentation({ presentation }: { presentation: Presentation }) {
+function DataPresentation({ presentation, municipalityName }: { presentation: Presentation; municipalityName: string }) {
   const max = Math.max(...(presentation.chart?.data.map((item) => Math.abs(item.value)) || [1]), 1);
   return (
     <div className="data-result">
-      <div className="data-result-head"><span>{presentation.nominal ? "Busca ativa" : "Dados do PEC"}</span><code>{presentation.toolId}</code></div>
+      <div className="data-result-head"><span>{presentation.nominal ? "Resultado nominal protegido" : "Resultado da análise"}</span><ExportButtons data={{ title: presentation.nominal ? "Resultado nominal" : "Resultado da análise", municipalityName, columns: presentation.columns, rows: presentation.rows }} /></div>
       {presentation.chart && presentation.chart.data.length > 0 && (
         <div className="inline-chart">
           <div className="chart-title">{presentation.chart.valueKey.replaceAll("_", " ")}</div>
@@ -122,7 +124,7 @@ function DataPresentation({ presentation }: { presentation: Presentation }) {
           ))}
         </div>
       )}
-      <div className="table-wrap"><table><thead><tr>{presentation.columns.map((column) => <th key={column}>{column.replaceAll("_", " ")}</th>)}</tr></thead><tbody>{presentation.rows.map((row, index) => <tr key={index}>{presentation.columns.map((column) => <td key={column}>{pretty(row[column])}</td>)}</tr>)}</tbody></table></div>
+      <div className="table-wrap"><table><thead><tr>{presentation.columns.map((column) => <th key={column}>{column.replaceAll("_", " ")}</th>)}</tr></thead><tbody>{presentation.rows.slice(0, presentation.nominal ? 15 : 50).map((row, index) => <tr key={index}>{presentation.columns.map((column) => <td key={column}>{pretty(row[column])}</td>)}</tr>)}</tbody></table></div>
     </div>
   );
 }
@@ -179,8 +181,6 @@ export default function Home() {
   async function logout() { await fetch(appPath("/api/auth/logout"), { method: "POST" }); window.location.href = appPath("/login"); }
   if (!identity) return <main className="loading-screen">Carregando ambiente de gestão…</main>;
 
-  const currentMunicipality = municipalities.find((item) => item.id === identity.municipalityId);
-  const pecConnected = currentMunicipality?.pec?.last_test_status === "success";
   const sectionTitles = { assistant: "Assistente de Gestão APS", overview: "Visão geral", "registration-links": "Cadastro e vínculos", indicators: "Indicadores", "active-search": "Busca ativa", territory: "Território" };
 
   return (
@@ -210,14 +210,13 @@ export default function Home() {
 
       <section className="chat-panel">
         <header className="topbar">
-          <div><strong>{sectionTitles[activeSection]}</strong><span>{identity.municipalityName} · PEC + conhecimento normativo</span></div>
-          <div className="status-group"><span className="status"><i /> RAG conectado</span><span className={`status pec ${pecConnected ? "" : "offline"}`}><i /> {pecConnected ? "PEC conectado" : "PEC não validado"}</span></div>
+          <div><strong>{sectionTitles[activeSection]}</strong><span>{identity.municipalityName} · Inteligência em gestão da APS</span></div>
         </header>
         {activeSection === "assistant" ? <><div className="conversation">
           {messages.length === 0 ? (
             <div className="welcome"><div className="welcome-icon">✦</div><h1>O que você quer analisar na APS?</h1><p>Converse com os dados do PEC de <strong>{identity.municipalityName}</strong> e com a base técnica da CBAItyhy. A conexão de dados é isolada por município.</p><div className="suggestions">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => void send(suggestion)}>{suggestion}</button>)}</div></div>
           ) : (
-            <div className="messages">{messages.map((message, index) => <article className={`message ${message.role}`} key={`${message.role}-${index}`}><div className="avatar">{message.role === "user" ? "G" : "✦"}</div><div className="message-body"><div className="message-author">{message.role === "user" ? "Você" : "CBAItyhy IA"}</div><div className="message-content">{message.role === "assistant" ? <MarkdownMessage content={message.content} /> : message.content}</div>{message.presentation && <DataPresentation presentation={message.presentation} />}{message.sources && message.sources.length > 0 && <div className="sources"><span>Fontes consultadas</span>{message.sources.slice(0, 5).map((source) => source.url ? <a key={source.id} href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : <span className="source-chip" key={source.id}>{source.title}</span>)}</div>}</div></article>)}{loading && <article className="message assistant"><div className="avatar">✦</div><div className="message-body"><div className="thinking">Consultando dados e analisando evidências…</div></div></article>}</div>
+            <div className="messages">{messages.map((message, index) => <article className={`message ${message.role}`} key={`${message.role}-${index}`}><div className="avatar">{message.role === "user" ? "G" : "✦"}</div><div className="message-body"><div className="message-author">{message.role === "user" ? "Você" : "CBAItyhy IA"}</div><div className="message-content">{message.role === "assistant" ? <MarkdownMessage content={message.content} /> : message.content}</div>{message.presentation && <DataPresentation presentation={message.presentation} municipalityName={identity.municipalityName} />}{message.sources && message.sources.length > 0 && <div className="sources"><span>Fontes consultadas</span>{message.sources.slice(0, 5).map((source) => source.url ? <a key={source.id} href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : <span className="source-chip" key={source.id}>{source.title}</span>)}</div>}</div></article>)}{loading && <article className="message assistant"><div className="avatar">✦</div><div className="message-body"><div className="thinking">Consultando dados e analisando evidências…</div></div></article>}</div>
           )}
         </div>
         <div className="composer-wrap"><form className="composer" onSubmit={submit}><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (canSend) void send(); } }} placeholder={`Pergunte sobre ${identity.municipalityName}…`} rows={1} /><button type="submit" disabled={!canSend}>↑</button></form><small>Consultas assistenciais usam somente tools SQL homologadas e a conexão PEC do município ativo.</small></div></> : <div className="module-scroll"><ManagementModule key={identity.municipalityId} view={activeSection} municipalityName={identity.municipalityName} /></div>}

@@ -46,7 +46,7 @@ function presentationFrom(result?: ToolResult | null) {
     nominal: result.nominal,
     toolId: result.toolId,
     columns,
-    rows: rows.slice(0, result.nominal ? 15 : 50),
+    rows,
     chart: result.chart && valueKey
       ? {
           type: "bar",

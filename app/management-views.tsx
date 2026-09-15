@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { appPath } from "@/lib/base-path";
 import { getOfficialIndicators, type IndicatorGroup, type OfficialIndicator } from "@/lib/official-indicators";
+import { ExportButtons } from "./export-buttons";
 
 export type ManagementView = "overview" | "registration-links" | "indicators" | "active-search" | "territory";
 
@@ -87,10 +88,10 @@ async function requestTool(toolId: string, parameters: Record<string, string | n
   return data as ToolResult;
 }
 
-function ResultTable({ result }: { result: ToolResult }) {
+function ResultTable({ result, municipalityName }: { result: ToolResult; municipalityName?: string }) {
   if (!result.rows.length) return <div className="module-empty compact"><strong>Nenhum registro encontrado</strong><span>A consulta foi executada, mas não retornou dados para os filtros atuais.</span></div>;
   const columns = Object.keys(result.rows[0]);
-  return <div className="module-result"><div className="module-result-head"><span>{result.nominal ? "Resultado nominal protegido" : "Resultado agregado"}{result.cache?.hit ? ` · Atualizado em ${new Date(result.cache.generatedAt).toLocaleString("pt-BR")}${result.cache.stale ? " · última versão disponível" : ""}` : ""}</span><span>{result.rowCount} {result.rowCount === 1 ? "linha" : "linhas"}</span></div><div className="module-table-wrap"><table><thead><tr>{columns.map((column) => <th key={column}>{column.replaceAll("_", " ")}</th>)}</tr></thead><tbody>{result.rows.map((row, rowIndex) => <tr key={rowIndex}>{columns.map((column) => <td key={column}>{pretty(row[column])}</td>)}</tr>)}</tbody></table></div></div>;
+  return <div className="module-result"><div className="module-result-head"><span>{result.nominal ? "Resultado nominal protegido" : "Resultado agregado"} · {result.rowCount} {result.rowCount === 1 ? "linha" : "linhas"}</span><ExportButtons data={{ title: result.nominal ? "Resultado nominal" : "Resultado agregado", municipalityName, columns, rows: result.rows }} /></div><div className="module-table-wrap"><table><thead><tr>{columns.map((column) => <th key={column}>{column.replaceAll("_", " ")}</th>)}</tr></thead><tbody>{result.rows.map((row, rowIndex) => <tr key={rowIndex}>{columns.map((column) => <td key={column}>{pretty(row[column])}</td>)}</tr>)}</tbody></table></div></div>;
 }
 
 function ModuleHeader({ eyebrow, title, description, municipalityName }: { eyebrow: string; title: string; description: string; municipalityName: string }) {
@@ -177,9 +178,10 @@ function RegistrationLinks({ municipalityName }: { municipalityName: string }) {
   const teams = allRows.filter((row) => String(row.ine || "-") !== "-");
   return <div className="module-page registration-links-page">
     <ModuleHeader eyebrow="VÍNCULO E ACOMPANHAMENTO TERRITORIAL" title="Cadastro e vínculos" description="Acompanhe população cadastrada, vínculo com equipes e consistência dos cadastros no PEC." municipalityName={municipalityName} />
+    {rows.length > 0 && <div className="registration-export"><ExportButtons data={{ title: "Cadastro e vínculos por equipe", municipalityName, columns: Object.keys(rows[0]), rows }} /></div>}
     <div className="registration-filter"><label>Filtrar por equipe<select value={selectedIne} onChange={(event) => setSelectedIne(event.target.value)}><option value="">Todas as equipes</option>{teams.map((row) => <option key={String(row.ine)} value={String(row.ine)}>{String(row.equipe)} · {String(row.ine)}</option>)}</select></label></div>
     {error && <div className="module-alert">{error}</div>}
-    {!result && !error && <div className="module-loading">Carregando dados armazenados do PEC…</div>}
+    {!result && !error && <div className="module-loading">Carregando dados…</div>}
     {result && <><div className="registration-hero">
       <article className="blue"><span>Cidadãos vinculados</span><strong>{pretty(linked)}</strong><small>{ratio(linked, registered)} da população cadastrada</small></article>
       <article className="green"><span>População cadastrada</span><strong>{pretty(registered)}</strong><small>Registros identificados no acompanhamento territorial</small></article>
