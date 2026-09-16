@@ -76,6 +76,66 @@ function indicatorSummary(indicator: OfficialIndicator, result?: ToolResult) {
   };
 }
 
+function scoreBand(value: number | null, indicatorId: string) {
+  if (value === null) return { label: "Informativo", tone: "neutral" };
+  if (indicatorId === "C1") {
+    if (value > 50 && value <= 70) return { label: "Ótimo", tone: "great" };
+    if (value > 30 && value <= 50) return { label: "Bom", tone: "good" };
+    if (value > 10 && value <= 30) return { label: "Suficiente", tone: "enough" };
+    return { label: "Regular", tone: "attention" };
+  }
+  if (value > 75) return { label: "Ótimo", tone: "great" };
+  if (value > 50) return { label: "Bom", tone: "good" };
+  if (value > 25) return { label: "Suficiente", tone: "enough" };
+  return { label: "Regular", tone: "attention" };
+}
+
+function IndicatorAggregateView({ group, groupTitle, changeGroup, indicatorTools, selected, run, loading, selectedIndicator, weights, formula, selectedResult, error, municipalityName }: {
+  group: IndicatorGroup; groupTitle: string; changeGroup: (group: IndicatorGroup) => void;
+  indicatorTools: Array<OfficialIndicator & { color: typeof indicatorColors[number] }>;
+  selected: string; run: (item: OfficialIndicator) => Promise<void>; loading: string;
+  selectedIndicator: OfficialIndicator; weights: NonNullable<OfficialIndicator["weights"]>; formula: string;
+  selectedResult: ToolResult | null; error: string; municipalityName: string;
+}) {
+  const [query, setQuery] = useState("");
+  const metric = indicatorMetricColumns[selectedIndicator.id];
+  const rows = (selectedResult?.rows || []).filter((row) => row.equipe !== "TOTAL MUNICIPAL");
+  const filteredRows = rows.filter((row) => `${String(row.equipe || "")} ${String(row.nu_ine || row.ine || "")}`.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR")));
+  const numerator = metric ? rows.reduce((total, row) => total + numberValue(row[metric.numerator]), 0) : 0;
+  const denominator = metric ? rows.reduce((total, row) => total + numberValue(row[metric.denominator]), 0) : 0;
+  const municipalScore = metric && selectedIndicator.id !== "C3" && denominator ? numerator / denominator * 100 : null;
+  const exportRows = filteredRows.map((row) => {
+    const rowNumerator = metric ? numberValue(row[metric.numerator]) : 0;
+    const rowDenominator = metric ? numberValue(row[metric.denominator]) : 0;
+    const score = metric && selectedIndicator.id !== "C3" && rowDenominator ? rowNumerator / rowDenominator * 100 : null;
+    return { equipe: row.equipe || "SEM EQUIPE", ine: row.nu_ine || row.ine || "-", numerador: rowNumerator, denominador: rowDenominator, resultado: score === null ? "Informativo" : `${score.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`, classificacao: scoreBand(score, selectedIndicator.id).label };
+  });
+
+  return <div className="module-page indicator-page-redesign">
+    <ModuleHeader eyebrow="INDICADORES DA ATENÇÃO PRIMÁRIA" title={groupTitle} description="Compare o resultado geral do município e identifique rapidamente as equipes que precisam de maior atenção." municipalityName={municipalityName} />
+    <nav className="indicator-tabs">{indicatorGroups.map((item) => <button key={item.id} className={group === item.id ? "active" : ""} onClick={() => changeGroup(item.id)}>{item.label}</button>)}</nav>
+    <div className="indicator-selector-grid">{indicatorTools.map((item) => { const summary = indicatorSummary(item, selected === item.id ? selectedResult || undefined : undefined); return <button className={`indicator-selector ${selected === item.id ? "selected" : ""}`} key={item.id} onClick={() => void run(item)} disabled={Boolean(loading)}><span>{item.id}</span><div><strong>{item.title}</strong><small>{summary?.value || item.description}</small></div></button>; })}</div>
+    <section className="indicator-focus-head"><div><span>{selectedIndicator.id}</span><div><strong>{selectedIndicator.title}</strong><small>{selectedIndicator.description}</small></div></div><em>Prévia local · confira com SIAPS/Saúde 360</em></section>
+    {loading && <div className="module-loading">Carregando resultado…</div>}
+    {error && <div className="module-alert">{error}</div>}
+    {selectedResult && <>
+      <section className="indicator-summary-grid">
+        <article className="primary"><span>Resultado municipal</span><strong>{municipalScore === null ? "Informativo" : `${municipalScore.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`}</strong><small>{scoreBand(municipalScore, selectedIndicator.id).label}</small></article>
+        <article><span>Equipes avaliadas</span><strong>{rows.length}</strong><small>ESFs com resultado disponível</small></article>
+        <article><span>{selectedIndicator.id === "C3" ? "Pessoas identificadas" : "Atendem ao critério"}</span><strong>{pretty(numerator)}</strong><small>Numerador municipal</small></article>
+        <article><span>População considerada</span><strong>{pretty(denominator)}</strong><small>Denominador municipal</small></article>
+      </section>
+      <section className="team-results-card">
+        <header><div><strong>Resumo das ESFs</strong><span>Resultados agregados por equipe</span></div><div className="team-results-actions"><label>Buscar equipe ou INE<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ex.: ESF 01" /></label><ExportButtons data={{ title: `${selectedIndicator.id} - ${selectedIndicator.title} por equipe`, municipalityName, columns: Object.keys(exportRows[0] || {}), rows: exportRows }} /></div></header>
+        <div className="team-results-table"><table><thead><tr><th>Equipe</th><th>Numerador</th><th>Denominador</th><th>Resultado</th><th>Classificação</th></tr></thead><tbody>{exportRows.map((row) => { const rawScore = typeof row.resultado === "string" && row.resultado.endsWith("%") ? Number(row.resultado.replace("%", "").replace(".", "").replace(",", ".")) : null; const band = scoreBand(rawScore, selectedIndicator.id); return <tr key={`${String(row.ine)}-${String(row.equipe)}`}><td><strong>{String(row.equipe)}</strong><small>{String(row.ine)}</small></td><td>{pretty(row.numerador)}</td><td>{pretty(row.denominador)}</td><td><b className={`score-value ${band.tone}`}>{String(row.resultado)}</b></td><td><span className={`score-class ${band.tone}`}>{String(row.classificacao)}</span></td></tr>; })}</tbody></table></div>
+        {!exportRows.length && <div className="module-empty compact"><strong>Nenhuma equipe encontrada</strong><span>Revise o nome ou o INE pesquisado.</span></div>}
+        <footer className="score-legend"><strong>Faixas de leitura</strong>{selectedIndicator.id === "C1" ? <div><span className="attention">Regular <small>≤10 ou &gt;70</small></span><span className="enough">Suficiente <small>&gt;10 a 30</small></span><span className="good">Bom <small>&gt;30 a 50</small></span><span className="great">Ótimo <small>&gt;50 a 70</small></span></div> : <div><span className="attention">Regular <small>0 a 25</small></span><span className="enough">Suficiente <small>&gt;25 a 50</small></span><span className="good">Bom <small>&gt;50 a 75</small></span><span className="great">Ótimo <small>&gt;75 a 100</small></span></div>}</footer>
+      </section>
+    </>}
+    <section className="practice-panel"><header><div><span>{selectedIndicator.id}</span><strong>Como este indicador é calculado</strong></div><small>{weights.length ? "Pontuação metodológica: 100" : selectedIndicator.unit || "Indicador"}</small></header>{weights.length ? <div className="practice-grid">{weights.map((practice) => <article key={practice.code}><span>{practice.code}</span><p>{practice.label}</p><strong>{practice.points} pts</strong></article>)}</div> : <div className="formula-detail"><p>{formula}</p>{selectedIndicator.ranges && <small>{selectedIndicator.ranges}</small>}<span>Dados necessários: {selectedIndicator.requiredDomains.join(" · ")}</span></div>}</section>
+  </div>;
+}
+
 async function requestTool(toolId: string, parameters: Record<string, string | null> = {}) {
   const response = await fetch(appPath(`/api/tools/${toolId}`), {
     method: "POST",
@@ -241,6 +301,7 @@ function Indicators({ municipalityName }: { municipalityName: string }) {
   // Results are intentionally omitted so each group is hydrated once from the daily cache.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group, municipalityName]);
+  return <IndicatorAggregateView group={group} groupTitle={groupTitle} changeGroup={changeGroup} indicatorTools={indicatorTools} selected={selected} run={run} loading={loading} selectedIndicator={selectedIndicator} weights={weights} formula={formula} selectedResult={selectedResult} error={error} municipalityName={municipalityName} />;
   return <div className="module-page"><ModuleHeader eyebrow="INDICADORES FEDERAIS · CÁLCULO LOCAL" title={groupTitle} description="Cálculos gerenciais baseados nas fichas técnicas do Ministério da Saúde. O painel identifica claramente resultados parciais até a conciliação com o SIAPS/Saúde 360." municipalityName={municipalityName} /><nav className="indicator-tabs">{indicatorGroups.map((item) => <button key={item.id} className={group === item.id ? "active" : ""} onClick={() => changeGroup(item.id)}>{item.label}</button>)}</nav><div className="methodology-alert"><strong>PEC conectado</strong><span>Os resultados disponíveis usam o cache diário de {municipalityName}. Indicadores incompletos continuam identificados como recortes parciais e não substituem o resultado oficial.</span></div><div className="indicator-grid">{indicatorTools.map((item) => { const summary = indicatorSummary(item, results[item.id]); return <button className={`indicator-card ${item.color} ${selected === item.id ? "selected" : ""}`} key={item.id} onClick={() => void run(item)} disabled={Boolean(loading)}><span className="indicator-code">{item.id}</span><span className={`indicator-status ${item.toolId ? "available" : "pending"}`}>{item.toolId ? (results[item.id]?.cache?.hit ? "Cache diário" : "Recorte parcial") : "Mapeamento pendente"}</span><strong>{item.title}</strong>{summary ? <div className="indicator-summary"><b>{summary.value}</b><span>{summary.detail}</span></div> : <small>{item.description}</small>}<em>{loading === item.id ? "Carregando…" : item.toolId ? "Ver detalhamento por equipe →" : "Ver metodologia →"}</em></button>; })}</div><section className="practice-panel"><header><div><span>{selectedIndicator.id}</span><strong>{selectedIndicator.title}</strong></div><small>{weights.length ? "Pontuação metodológica: 100" : selectedIndicator.unit || "Indicador"}</small></header>{weights.length ? <div className="practice-grid">{weights.map((practice) => <article key={practice.code}><span>{practice.code}</span><p>{practice.label}</p><strong>{practice.points} pts</strong></article>)}</div> : <div className="formula-detail"><p>{formula}</p>{selectedIndicator.ranges && <small>{selectedIndicator.ranges}</small>}<span>Dados necessários: {selectedIndicator.requiredDomains.join(" · ")}</span></div>}</section>{loading && <div className="module-loading">Carregando o resultado armazenado do PEC…</div>}{error && <div className="module-alert">{error}</div>}{selectedResult && <ResultTable result={selectedResult} />}</div>;
 }
 

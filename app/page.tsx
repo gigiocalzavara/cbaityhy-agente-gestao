@@ -5,6 +5,7 @@ import { appPath } from "@/lib/base-path";
 import "./chat-markdown.css";
 import "./management-views.css";
 import "./export.css";
+import "./indicator-redesign.css";
 import { ManagementModule, type ManagementView } from "./management-views";
 import { ExportButtons } from "./export-buttons";
 
