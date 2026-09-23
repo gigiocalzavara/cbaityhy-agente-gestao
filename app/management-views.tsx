@@ -42,7 +42,7 @@ function numberValue(value: unknown) {
 
 const indicatorMetricColumns: Record<string, { numerator: string; denominator: string }> = {
   C1: { numerator: "atendimentos_programados", denominator: "total_atendimentos" },
-  C2: { numerator: "com_esquema_completo", denominator: "total_criancas_elegiveis" },
+  // C2 integral não deve usar o recorte vacinal como resultado oficial.\n  C2: { numerator: "com_esquema_completo", denominator: "total_criancas_elegiveis" },
   C3: { numerator: "total_gestantes_ativas", denominator: "total_gestantes_ativas" },
   C4: { numerator: "diabeticos_com_hba1c_6m", denominator: "total_diabeticos_ativos" },
   C5: { numerator: "hipertensos_com_pa_6m", denominator: "total_hipertensos_ativos" },
@@ -103,7 +103,7 @@ function IndicatorAggregateView({ group, groupTitle, changeGroup, indicatorTools
   const filteredRows = rows.filter((row) => `${String(row.equipe || "")} ${String(row.nu_ine || row.ine || "")}`.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR")));
   const numerator = metric ? rows.reduce((total, row) => total + numberValue(row[metric.numerator]), 0) : 0;
   const denominator = metric ? rows.reduce((total, row) => total + numberValue(row[metric.denominator]), 0) : 0;
-  const municipalScore = metric && selectedIndicator.id !== "C3" && denominator ? numerator / denominator * 100 : null;
+  const isC2Partial = selectedIndicator.id === "C2";\n  const municipalScore = metric && selectedIndicator.id !== "C3" && !isC2Partial && denominator ? numerator / denominator * 100 : null;\n  const c2VaccinationScore = isC2Partial && denominator ? numerator / denominator * 100 : null;
   const exportRows = filteredRows.map((row) => {
     const rowNumerator = metric ? numberValue(row[metric.numerator]) : 0;
     const rowDenominator = metric ? numberValue(row[metric.denominator]) : 0;
@@ -120,13 +120,13 @@ function IndicatorAggregateView({ group, groupTitle, changeGroup, indicatorTools
     {error && <div className="module-alert">{error}</div>}
     {selectedResult && <>
       <section className="indicator-summary-grid">
-        <article className="primary"><span>Resultado municipal</span><strong>{municipalScore === null ? "Informativo" : `${municipalScore.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`}</strong><small>{scoreBand(municipalScore, selectedIndicator.id).label}</small></article>
+        <article className="primary"><span>{isC2Partial ? "C2 municipal" : "Resultado municipal"}</span><strong>{isC2Partial ? "Em conciliação" : municipalScore === null ? "Informativo" : `${municipalScore.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`}</strong><small>{isC2Partial ? "Não confundir vacinação isolada com o C2 completo" : scoreBand(municipalScore, selectedIndicator.id).label}</small></article>
         <article><span>Equipes avaliadas</span><strong>{rows.length}</strong><small>ESFs com resultado disponível</small></article>
         <article><span>{selectedIndicator.id === "C3" ? "Pessoas identificadas" : "Atendem ao critério"}</span><strong>{pretty(numerator)}</strong><small>Numerador municipal</small></article>
         <article><span>População considerada</span><strong>{pretty(denominator)}</strong><small>Denominador municipal</small></article>
       </section>
       <section className="team-results-card">
-        <header><div><strong>Resumo das ESFs</strong><span>Resultados agregados por equipe</span></div><div className="team-results-actions"><label>Buscar equipe ou INE<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ex.: ESF 01" /></label><ExportButtons data={{ title: `${selectedIndicator.id} - ${selectedIndicator.title} por equipe`, municipalityName, columns: Object.keys(exportRows[0] || {}), rows: exportRows }} /></div></header>
+        <header><div><strong>{isC2Partial ? "Recorte E · Vacinação por ESF" : "Resumo das ESFs"}</strong><span>{isC2Partial ? "O C2 completo será apresentado por A, B, C, D e E após conciliação metodológica" : "Resultados agregados por equipe"}</span></div><div className="team-results-actions"><label>Buscar equipe ou INE<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ex.: ESF 01" /></label><ExportButtons data={{ title: `${selectedIndicator.id} - ${selectedIndicator.title} por equipe`, municipalityName, columns: Object.keys(exportRows[0] || {}), rows: exportRows }} /></div></header>
         <div className="team-results-table"><table><thead><tr><th>Equipe</th><th>Numerador</th><th>Denominador</th><th>Resultado</th><th>Classificação</th></tr></thead><tbody>{exportRows.map((row) => { const rawScore = typeof row.resultado === "string" && row.resultado.endsWith("%") ? Number(row.resultado.replace("%", "").replace(".", "").replace(",", ".")) : null; const band = scoreBand(rawScore, selectedIndicator.id); return <tr key={`${String(row.ine)}-${String(row.equipe)}`}><td><strong>{String(row.equipe)}</strong><small>{String(row.ine)}</small></td><td>{pretty(row.numerador)}</td><td>{pretty(row.denominador)}</td><td><b className={`score-value ${band.tone}`}>{String(row.resultado)}</b></td><td><span className={`score-class ${band.tone}`}>{String(row.classificacao)}</span></td></tr>; })}</tbody></table></div>
         {!exportRows.length && <div className="module-empty compact"><strong>Nenhuma equipe encontrada</strong><span>Revise o nome ou o INE pesquisado.</span></div>}
         <footer className="score-legend"><strong>Faixas de leitura</strong>{selectedIndicator.id === "C1" ? <div><span className="attention">Regular <small>≤10 ou &gt;70</small></span><span className="enough">Suficiente <small>&gt;10 a 30</small></span><span className="good">Bom <small>&gt;30 a 50</small></span><span className="great">Ótimo <small>&gt;50 a 70</small></span></div> : <div><span className="attention">Regular <small>0 a 25</small></span><span className="enough">Suficiente <small>&gt;25 a 50</small></span><span className="good">Bom <small>&gt;50 a 75</small></span><span className="great">Ótimo <small>&gt;75 a 100</small></span></div>}</footer>
