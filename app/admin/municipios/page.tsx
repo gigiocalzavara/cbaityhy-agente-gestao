@@ -27,10 +27,13 @@ type Municipality = {
   } | null;
 };
 
+type SchemaDomain = { domain: string; status: string; tables?: { table: string; columns?: unknown[] }[]; candidates?: readonly string[]; error?: string };
 type ValidationReport = {
   compatible: boolean;
   checkedAt: string;
   results: { id: string; status: "compatible" | "error"; error: string | null }[];
+  saude360Schema?: SchemaDomain[];
+  c2Readiness?: { readyForMapping: boolean; missingDomains: string[]; note: string };
 };
 
 export default function MunicipalitiesAdminPage() {
@@ -218,6 +221,19 @@ export default function MunicipalitiesAdminPage() {
                 <strong>{validation.compatible ? `${validation.results.length} consultas compatíveis` : "Compatibilidade parcial"}</strong>
                 <span>Verificado em {new Date(validation.checkedAt).toLocaleString("pt-BR")}</span>
                 <ul>{validation.results.map((result) => <li key={result.id}><span>{result.status === "compatible" ? "✓" : "✕"} {result.id.replace("tool_", "").replaceAll("_", " ")}</span>{result.error && <small>{result.error}</small>}</li>)}</ul>
+                {validation.c2Readiness && <div className="c2-readiness">
+                  <strong>C2 · Desenvolvimento infantil</strong>
+                  <p>{validation.c2Readiness.readyForMapping ? "✓ Domínios-base localizados no PEC." : "✕ Mapeamento ainda incompleto."}</p>
+                  <small>{validation.c2Readiness.note}</small>
+                  {validation.c2Readiness.missingDomains.length > 0 && <small>Domínios ausentes: {validation.c2Readiness.missingDomains.join(", ")}</small>}
+                  <details>
+                    <summary>Ver tabelas e colunas do PEC usadas no mapeamento</summary>
+                    {(validation.saude360Schema || []).map((domain) => <div key={domain.domain} className="schema-domain">
+                      <b>{domain.domain}</b>
+                      {domain.tables?.length ? domain.tables.map((table) => <div key={table.table}><code>{table.table}</code><small>{Array.isArray(table.columns) ? table.columns.join(", ") : ""}</small></div>) : <small>Nenhuma tabela candidata encontrada.</small>}
+                    </div>)}
+                  </details>
+                </div>}
               </div>}
               <small className="security-note">As senhas PostgreSQL e SSH são criptografadas no servidor antes de serem armazenadas e nunca são devolvidas ao navegador.</small>
             </form>
