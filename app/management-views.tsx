@@ -103,7 +103,9 @@ function IndicatorAggregateView({ group, groupTitle, changeGroup, indicatorTools
   const filteredRows = rows.filter((row) => `${String(row.equipe || "")} ${String(row.nu_ine || row.ine || "")}`.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR")));
   const numerator = metric ? rows.reduce((total, row) => total + numberValue(row[metric.numerator]), 0) : 0;
   const denominator = metric ? rows.reduce((total, row) => total + numberValue(row[metric.denominator]), 0) : 0;
-  const isC2Partial = selectedIndicator.id === "C2";\n  const municipalScore = metric && selectedIndicator.id !== "C3" && !isC2Partial && denominator ? numerator / denominator * 100 : null;\n  const c2VaccinationScore = isC2Partial && denominator ? numerator / denominator * 100 : null;
+  const isC2Partial = selectedIndicator.id === "C2";
+  const municipalScore = metric && selectedIndicator.id !== "C3" && !isC2Partial && denominator ? numerator / denominator * 100 : null;
+  const c2VaccinationScore = isC2Partial && denominator ? numerator / denominator * 100 : null;
   const exportRows = filteredRows.map((row) => {
     const rowNumerator = metric ? numberValue(row[metric.numerator]) : 0;
     const rowDenominator = metric ? numberValue(row[metric.denominator]) : 0;
