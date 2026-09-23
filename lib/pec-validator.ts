@@ -31,9 +31,11 @@ const saude360Domains = [
   { domain: "dimensao_cbo", candidates: ["tb_dim_cbo"] },
   { domain: "dimensao_equipe", candidates: ["tb_dim_equipe", "tb_equipe"] },
   { domain: "vinculacao", candidates: ["tb_cidadao_vinculacao_equipe"] },
+  { domain: "cidadao_pec", candidates: ["tb_fat_cidadao_pec", "tb_cidadao"] },
+  { domain: "dimensao_tempo", candidates: ["tb_dim_tempo"] },
 ] as const;
 
-async function inspectSaude360Schema(municipalityId: string) {
+export async function inspectSaude360Schema(municipalityId: string) {
   const candidates = [...new Set(saude360Domains.flatMap((item) => item.candidates))];
   const rows = await executeReadOnlyQuery(
     municipalityId,
@@ -99,5 +101,15 @@ export async function validatePecToolCatalog(municipalityId: string, municipalit
     checkedAt: new Date().toISOString(),
     results,
     saude360Schema,
+    c2Readiness: (() => {
+      const byDomain = new Map(saude360Schema.map((item: any) => [item.domain, item]));
+      const required = ["atendimento_individual", "visita_domiciliar", "vacinacao", "vinculacao", "cidadao_pec", "dimensao_tempo"];
+      const missing = required.filter((domain) => byDomain.get(domain)?.status !== "found");
+      return {
+        readyForMapping: missing.length === 0,
+        missingDomains: missing,
+        note: missing.length ? "C2 integral bloqueado até localizar todos os domínios no PEC." : "Domínios-base do C2 localizados. Validar colunas de antropometria e regras de registro antes de homologar o cálculo.",
+      };
+    })(),
   };
 }
