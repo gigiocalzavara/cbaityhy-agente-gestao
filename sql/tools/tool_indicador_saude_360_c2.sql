@@ -21,7 +21,7 @@ consultas AS (
     COUNT(DISTINCT a.co_seq_fat_atd_ind) FILTER (
       WHERE t.dt_registro::date BETWEEN c.nascimento AND c.nascimento + 30
     ) AS consultas_30d,
-    COUNT(DISTINCT a.co_seq_fat_atd_ind) AS consultas_2a
+    COUNT(DISTINCT t.dt_registro::date) AS consultas_2a
   FROM public.tb_fat_atendimento_individual a
   JOIN criancas c ON c.cid = a.co_fat_cidadao_pec
   JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = a.co_dim_tempo
@@ -41,14 +41,22 @@ antropometria AS (
     FROM public.tb_fat_atendimento_individual a
     JOIN criancas c ON c.cid = a.co_fat_cidadao_pec
     JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = a.co_dim_tempo
+    LEFT JOIN public.tb_dim_cbo cbo1 ON cbo1.co_seq_dim_cbo = a.co_dim_cbo_1
+    LEFT JOIN public.tb_dim_cbo cbo2 ON cbo2.co_seq_dim_cbo = a.co_dim_cbo_2
     WHERE a.nu_peso IS NOT NULL AND a.nu_altura IS NOT NULL
+      AND (
+        COALESCE(cbo1.nu_cbo,'') ~ '^(2231|2232|2234|2235|2236|2237|2238|2239|2241|2251|2252|2253|3222|515105)'
+        OR COALESCE(cbo2.nu_cbo,'') ~ '^(2231|2232|2234|2235|2236|2237|2238|2239|2241|2251|2252|2253|3222|515105)'
+      )
       AND t.dt_registro::date BETWEEN c.nascimento AND LEAST(CURRENT_DATE, (c.nascimento + INTERVAL '2 years')::date)
     UNION
     SELECT v.co_fat_cidadao_pec AS cid, t.dt_registro::date AS dia
     FROM public.tb_fat_visita_domiciliar v
     JOIN criancas c ON c.cid = v.co_fat_cidadao_pec
     JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = v.co_dim_tempo
+    LEFT JOIN public.tb_dim_cbo cbo ON cbo.co_seq_dim_cbo = v.co_dim_cbo
     WHERE v.nu_peso IS NOT NULL AND v.nu_altura IS NOT NULL
+      AND COALESCE(cbo.nu_cbo,'') IN ('515105','322255')
       AND t.dt_registro::date BETWEEN c.nascimento AND LEAST(CURRENT_DATE, (c.nascimento + INTERVAL '2 years')::date)
   ) x GROUP BY x.cid
 ),
