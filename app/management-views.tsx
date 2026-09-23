@@ -43,7 +43,7 @@ function numberValue(value: unknown) {
 const indicatorMetricColumns: Record<string, { numerator: string; denominator: string }> = {
   C1: { numerator: "atendimentos_programados", denominator: "total_atendimentos" },
   // C2 integral não deve usar o recorte vacinal como resultado oficial.
-  C2: { numerator: "com_esquema_completo", denominator: "total_criancas_elegiveis" },
+  C2: { numerator: "numerador_pontos", denominator: "denominador_criancas" },
   C3: { numerator: "total_gestantes_ativas", denominator: "total_gestantes_ativas" },
   C4: { numerator: "diabeticos_com_hba1c_6m", denominator: "total_diabeticos_ativos" },
   C5: { numerator: "hipertensos_com_pa_6m", denominator: "total_hipertensos_ativos" },
@@ -104,13 +104,14 @@ function IndicatorAggregateView({ group, groupTitle, changeGroup, indicatorTools
   const filteredRows = rows.filter((row) => `${String(row.equipe || "")} ${String(row.nu_ine || row.ine || "")}`.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR")));
   const numerator = metric ? rows.reduce((total, row) => total + numberValue(row[metric.numerator]), 0) : 0;
   const denominator = metric ? rows.reduce((total, row) => total + numberValue(row[metric.denominator]), 0) : 0;
-  const isC2Partial = selectedIndicator.id === "C2";
-  const municipalScore = metric && selectedIndicator.id !== "C3" && !isC2Partial && denominator ? numerator / denominator * 100 : null;
+  const isC2Partial = false;
+  const isC2Full = selectedIndicator.id === "C2";
+  const municipalScore = metric && selectedIndicator.id !== "C3" && denominator ? (isC2Full ? numerator / denominator : numerator / denominator * 100) : null;
   const c2VaccinationScore = isC2Partial && denominator ? numerator / denominator * 100 : null;
   const exportRows = filteredRows.map((row) => {
     const rowNumerator = metric ? numberValue(row[metric.numerator]) : 0;
     const rowDenominator = metric ? numberValue(row[metric.denominator]) : 0;
-    const score = metric && selectedIndicator.id !== "C3" && !isC2Partial && rowDenominator ? rowNumerator / rowDenominator * 100 : null;
+    const score = metric && selectedIndicator.id !== "C3" && rowDenominator ? (isC2Full ? rowNumerator / rowDenominator : rowNumerator / rowDenominator * 100) : null;
     return { equipe: row.equipe || "SEM EQUIPE", ine: row.nu_ine || row.ine || "-", numerador: rowNumerator, denominador: rowDenominator, resultado: score === null ? "Informativo" : `${score.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`, classificacao: scoreBand(score, selectedIndicator.id).label };
   });
 
