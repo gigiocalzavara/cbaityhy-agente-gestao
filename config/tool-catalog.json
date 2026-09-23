@@ -14,7 +14,7 @@
     {"id":"tool_indicador_saude_bucal_b1","sql":"sql/tools/tool_indicador_saude_bucal_b1.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[],"municipalityScoped":true},
     {"id":"tool_indicador_saude_bucal_b2","sql":"sql/tools/tool_indicador_saude_bucal_b2.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[],"municipalityScoped":true},
     {"id":"tool_indicador_saude_360_c1","sql":"sql/tools/tool_indicador_saude_360_c1.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[],"municipalityScoped":true},
-    {"id":"tool_indicador_saude_360_c2","sql":"sql/tools/tool_indicador_saude_360_c2.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[],"municipalityScoped":true},
+    {"id":"tool_indicador_saude_360_c2","sql":"sql/tools/tool_indicador_saude_360_c2.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[]},
     {"id":"tool_indicador_saude_bucal_b3","sql":"sql/tools/tool_indicador_saude_bucal_b3.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[],"municipalityScoped":true},
     {"id":"tool_indicador_saude_bucal_b5","sql":"sql/tools/tool_indicador_saude_bucal_b5.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[],"municipalityScoped":true},
     {"id":"tool_indicador_saude_bucal_b6","sql":"sql/tools/tool_indicador_saude_bucal_b6.sql","kind":"aggregate","nominal":false,"chart":true,"parameters":[],"municipalityScoped":true},
