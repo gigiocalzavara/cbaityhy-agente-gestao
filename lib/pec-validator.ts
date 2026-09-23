@@ -37,14 +37,17 @@ const saude360Domains = [
 
 export async function inspectSaude360Schema(municipalityId: string) {
   const candidates = [...new Set(saude360Domains.flatMap((item) => item.candidates))];
+  // Evita parâmetro text[]: algumas instalações/roles do PEC falham ao
+  // preparar consultas de catálogo com arrays, embora as tools homologadas funcionem.
+  // Os nomes abaixo são constantes internas, nunca entrada do usuário.
+  const candidateList = candidates.map((name) => `'${name.replaceAll("'", "''")}'`).join(", ");
   const rows = await executeReadOnlyQuery(
     municipalityId,
-    `SELECT table_name, array_agg(column_name ORDER BY ordinal_position) AS columns
+    `SELECT table_name, array_agg(column_name::text ORDER BY ordinal_position) AS columns
        FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = ANY($1::text[])
+      WHERE table_schema = 'public' AND table_name IN (${candidateList})
       GROUP BY table_name
       ORDER BY table_name`,
-    [candidates],
   );
   const found = new Map(rows.map((row) => [String(row.table_name), Array.isArray(row.columns) ? row.columns : []]));
   return saude360Domains.map((item) => {
