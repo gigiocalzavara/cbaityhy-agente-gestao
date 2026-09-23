@@ -96,7 +96,7 @@ avaliacao AS (
     (COALESCE(an.registros,0) >= 9)::int AS cc,
     (COALESCE(vd.visita_30d,0) >= 1 AND COALESCE(vd.visita_6m,0) >= 1)::int AS d,
     (COALESCE(va.dtp_hb_hib,0) >= 3 AND COALESCE(va.polio,0) >= 3
-      AND COALESCE(va.pneumo,0) >= 3 AND COALESCE(va.triplice_viral,0) >= 1)::int AS e
+      AND COALESCE(va.pneumo,0) >= 2 AND COALESCE(va.triplice_viral,0) >= 2)::int AS e
   FROM criancas c
   LEFT JOIN consultas q ON q.cid = c.cid
   LEFT JOIN antropometria an ON an.cid = c.cid
