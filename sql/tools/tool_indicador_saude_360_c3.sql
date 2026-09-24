@@ -88,12 +88,10 @@ vinculo_atual AS (
     i.pessoa_id, NULLIF(v.nu_ine, '-') AS nu_ine
   FROM identidades i
   JOIN public.tb_cidadao_vinculacao_equipe v ON v.co_cidadao = i.co_cidadao
-  JOIN public.tb_equipe eq ON eq.nu_ine = v.nu_ine
   WHERE i.pessoa_id IS NOT NULL
     AND COALESCE(v.st_usar_cadastro_individual, 1) = 1
     AND COALESCE(v.st_saida_cadastro_obito, 0) = 0
     AND COALESCE(v.st_saida_cadastro_territorio, 0) = 0
-    AND eq.tp_equipe IN (70, 76)
   ORDER BY i.pessoa_id, v.dt_atualizacao_cadastro DESC NULLS LAST,
     v.co_seq_cidadao_vinculacao_eqp DESC
 ),
