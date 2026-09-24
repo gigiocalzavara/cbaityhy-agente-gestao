@@ -81,6 +81,7 @@ export async function runManagementAgent({ message, history = [], context }: Age
     "Para perguntas normativas, use exclusivamente as evidências do RAG fornecidas no contexto; se forem insuficientes, declare a limitação.",
     "Para dados agregados, destaque cobertura, equipes em pior situação e prioridade operacional sem criar meta normativa não sustentada.",
     "Para busca nominal, só solicite uma função nominal se a pergunta realmente pedir lista de pessoas/ação de busca ativa.",
+    "Quando o gestor pedir censo, panorama ou situação das gestantes de uma equipe/ESF, use tool_censo_gestantes. Essa função já combina os snapshots do indicador C3 e da busca ativa C3; não tente complementar o censo consultando o PEC nem usando a ferramenta dinâmica. Para ESF/INE informado, passe o INE quando ele estiver explícito no pedido ou no histórico.",
     "Diferencie rigorosamente os objetos da pergunta: equipe/ESF/UBS, profissional de saúde e cidadão. Não trate nome de profissional como nome de cidadão.",
     "Quando o gestor identificar uma equipe como ESF 1, ESF 01, equipe 3 ou por nome, envie exatamente esse texto no parâmetro equipe; a função fará a correspondência por nome ou INE.",
     "Interprete 'este mês' como o mês civil atual. Quadrimestre significa os blocos janeiro-abril, maio-agosto ou setembro-dezembro; sempre informe as datas do período retornado pela função.",
