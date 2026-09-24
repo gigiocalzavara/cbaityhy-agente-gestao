@@ -1,142 +1,196 @@
 -- C3 · Cuidado na gestação e puerpério
--- Nota Metodológica C3/SAPS/MS, versão assinada em 22/06/2026.
--- Prévia local calculada exclusivamente com registros disponíveis no PEC.
-WITH gestacoes_identificadas AS (
-  SELECT DISTINCT ON (a.co_fat_cidadao_pec)
-    a.co_fat_cidadao_pec AS cid,
-    COALESCE(dum.dt_registro::date,
+-- Nota Metodológica C3/SAPS/MS, atualizada em 24/06/2026.
+-- Prévia local: usa somente eventos identificados no PEC, deduplicados por CPF/CNS.
+WITH identidades AS (
+  SELECT f.co_seq_fat_cidadao_pec AS cid, f.co_cidadao,
+    CASE
+      WHEN length(regexp_replace(COALESCE(f.nu_cpf_cidadao,''), '[^0-9]', '', 'g')) = 11
+        THEN 'CPF:' || regexp_replace(f.nu_cpf_cidadao, '[^0-9]', '', 'g')
+      WHEN length(regexp_replace(COALESCE(f.nu_cns,''), '[^0-9]', '', 'g')) = 15
+        THEN 'CNS:' || regexp_replace(f.nu_cns, '[^0-9]', '', 'g')
+    END AS pessoa_id
+  FROM public.tb_fat_cidadao_pec f
+  WHERE COALESCE(f.st_faleceu, 0) = 0
+    AND COALESCE(f.st_deletar, 0) = 0
+),
+eventos_gestacao AS (
+  SELECT i.pessoa_id, a.co_fat_cidadao_pec AS cid,
+    a.dt_inicial_atendimento::date AS dia,
+    COALESCE(
+      dum.dt_registro::date,
       (a.dt_inicial_atendimento::date - (NULLIF(a.nu_idade_gestacional_semanas, 0) * 7))::date
     ) AS inicio_gestacao
   FROM public.tb_fat_atendimento_individual a
+  JOIN identidades i ON i.cid = a.co_fat_cidadao_pec AND i.pessoa_id IS NOT NULL
   LEFT JOIN public.tb_dim_tempo dum ON dum.co_seq_dim_tempo = a.co_dim_tempo_dum
-  WHERE a.co_fat_cidadao_pec IS NOT NULL
-    AND a.dt_inicial_atendimento >= CURRENT_DATE - INTERVAL '336 days'
+  WHERE a.dt_inicial_atendimento >= CURRENT_DATE - INTERVAL '336 days'
     AND (
-      POSITION('|W78|' IN COALESCE(a.ds_filtro_ciaps,'')) > 0
-      OR POSITION('|W79|' IN COALESCE(a.ds_filtro_ciaps,'')) > 0
-      OR POSITION('|W84|' IN COALESCE(a.ds_filtro_ciaps,'')) > 0
-      OR POSITION('Z34' IN COALESCE(a.ds_filtro_cids,'')) > 0
-      OR POSITION('Z35' IN COALESCE(a.ds_filtro_cids,'')) > 0
-      OR a.co_dim_tempo_dum IS NOT NULL
-      OR COALESCE(a.nu_idade_gestacional_semanas, 0) > 0
+      COALESCE(a.ds_filtro_ciaps,'') ~ '\|(W03|W78|W79|W81|W84|W85)\|'
+      OR replace(upper(COALESCE(a.ds_filtro_cids,'')),'.','') ~
+        '\|(O10|O11|O12|O13|O14|O15|O16|O20|O21|O22|O23|O24|O25|O26|O28|O29|O30|O31|O32|O33|O34|O35|O36|O40|O41|O43|O44|O46|O47|O48|O752|O753|O98|O990|O991|O992|O993|O994|O995|O996|O997|Z321|Z33|Z34|Z35|Z36|Z640)'
     )
-    AND COALESCE(dum.dt_registro::date,
+    AND COALESCE(
+      dum.dt_registro::date,
       (a.dt_inicial_atendimento::date - (NULLIF(a.nu_idade_gestacional_semanas, 0) * 7))::date
     ) BETWEEN CURRENT_DATE - 336 AND CURRENT_DATE
-  ORDER BY a.co_fat_cidadao_pec,
-    COALESCE(dum.dt_registro::date,
-      (a.dt_inicial_atendimento::date - (NULLIF(a.nu_idade_gestacional_semanas, 0) * 7))::date
-    ) DESC,
-    a.dt_inicial_atendimento DESC
 ),
-puerperios_registrados AS (
-  SELECT a.co_fat_cidadao_pec AS cid, MIN(a.dt_inicial_atendimento::date) AS referencia_puerperio
+episodios AS (
+  SELECT DISTINCT ON (pessoa_id)
+    pessoa_id, inicio_gestacao
+  FROM eventos_gestacao
+  ORDER BY pessoa_id, inicio_gestacao DESC, dia DESC
+),
+eventos_puerperio AS (
+  SELECT pessoa_id, MIN(dia) AS primeiro_puerperio
+  FROM (
+    SELECT i.pessoa_id, a.dt_inicial_atendimento::date AS dia
+    FROM public.tb_fat_atendimento_individual a
+    JOIN identidades i ON i.cid = a.co_fat_cidadao_pec AND i.pessoa_id IS NOT NULL
+    JOIN episodios ep ON ep.pessoa_id = i.pessoa_id
+    WHERE a.dt_inicial_atendimento::date BETWEEN ep.inicio_gestacao AND ep.inicio_gestacao + 336
+      AND (
+        COALESCE(a.ds_filtro_ciaps,'') ~ '\|(48|49|P29|W18|W19|W70|W90|W91|W92|W93|W94|W95|W96)\|'
+        OR replace(upper(COALESCE(a.ds_filtro_cids,'')),'.','') ~
+          '\|(F53|M830|O152|O266|O722|O723|O85|O86|O87|O90|O91|O92|O94|Z370|Z371|Z372|Z373|Z374|Z375|Z376|Z377|Z379|Z38|Z39)'
+        OR replace(COALESCE(a.ds_filtro_proced_avaliados,''),'.','') LIKE '%0301010129%'
+      )
+    UNION ALL
+    SELECT i.pessoa_id, t.dt_registro::date
+    FROM public.tb_fat_proced_atend_proced pr
+    JOIN identidades i ON i.cid = pr.co_fat_cidadao_pec AND i.pessoa_id IS NOT NULL
+    JOIN episodios ep ON ep.pessoa_id = i.pessoa_id
+    JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = pr.co_dim_tempo
+    JOIN public.tb_dim_procedimento dp ON dp.co_seq_dim_procedimento = pr.co_dim_procedimento
+    WHERE t.dt_registro::date BETWEEN ep.inicio_gestacao AND ep.inicio_gestacao + 336
+      AND regexp_replace(COALESCE(dp.nu_identificador::text,''), '[^0-9]', '', 'g') = '0301010129'
+  ) x
+  GROUP BY pessoa_id
+),
+exclusoes AS (
+  SELECT DISTINCT i.pessoa_id
   FROM public.tb_fat_atendimento_individual a
-  JOIN gestacoes_identificadas g ON g.cid = a.co_fat_cidadao_pec
-  WHERE a.dt_inicial_atendimento >= CURRENT_DATE - INTERVAL '42 days'
+  JOIN identidades i ON i.cid = a.co_fat_cidadao_pec AND i.pessoa_id IS NOT NULL
+  JOIN episodios ep ON ep.pessoa_id = i.pessoa_id
+  WHERE a.dt_inicial_atendimento::date BETWEEN ep.inicio_gestacao AND LEAST(CURRENT_DATE, ep.inicio_gestacao + 336)
     AND (
-      POSITION('|W96|' IN COALESCE(a.ds_filtro_ciaps,'')) > 0
-      OR POSITION('Z39' IN COALESCE(a.ds_filtro_cids,'')) > 0
+      COALESCE(a.ds_filtro_ciaps,'') ~ '\|(W82|W83)\|'
+      OR replace(upper(COALESCE(a.ds_filtro_cids,'')),'.','') ~ '\|(O02|O03|O04|O05|O06|Z303)'
     )
-  GROUP BY a.co_fat_cidadao_pec
 ),
 vinculo_atual AS (
-  SELECT DISTINCT ON (v.co_cidadao)
-    v.co_cidadao, NULLIF(v.nu_ine, '-') AS nu_ine
-  FROM public.tb_cidadao_vinculacao_equipe v
-  WHERE COALESCE(v.st_usar_cadastro_individual, 1) = 1
+  SELECT DISTINCT ON (i.pessoa_id)
+    i.pessoa_id, NULLIF(v.nu_ine, '-') AS nu_ine
+  FROM identidades i
+  JOIN public.tb_cidadao_vinculacao_equipe v ON v.co_cidadao = i.co_cidadao
+  JOIN public.tb_equipe eq ON eq.nu_ine = v.nu_ine
+  WHERE i.pessoa_id IS NOT NULL
+    AND COALESCE(v.st_usar_cadastro_individual, 1) = 1
     AND COALESCE(v.st_saida_cadastro_obito, 0) = 0
     AND COALESCE(v.st_saida_cadastro_territorio, 0) = 0
-  ORDER BY v.co_cidadao, v.dt_atualizacao_cadastro DESC NULLS LAST,
+    AND eq.tp_equipe IN (70, 76)
+  ORDER BY i.pessoa_id, v.dt_atualizacao_cadastro DESC NULLS LAST,
     v.co_seq_cidadao_vinculacao_eqp DESC
 ),
 pessoas AS (
-  SELECT g.cid, g.inicio_gestacao,
-    CASE
-      -- O fato local não expõe a data do desfecho. O primeiro registro
-      -- puerperal delimita, de forma conservadora, o início do puerpério.
-      WHEN p.referencia_puerperio IS NOT NULL THEN p.referencia_puerperio - 1
-      ELSE (g.inicio_gestacao + 294)
-    END::date AS fim_gestacao,
-    p.referencia_puerperio IS NOT NULL
-      OR CURRENT_DATE > (g.inicio_gestacao + 294) AS em_puerperio,
-    va.nu_ine,
-    COALESCE(e.no_equipe, 'SEM EQUIPE') AS equipe
-  FROM gestacoes_identificadas g
-  JOIN public.tb_fat_cidadao_pec fcp ON fcp.co_seq_fat_cidadao_pec = g.cid
-  LEFT JOIN puerperios_registrados p ON p.cid = g.cid
-  LEFT JOIN vinculo_atual va ON va.co_cidadao = fcp.co_cidadao
-  LEFT JOIN public.tb_dim_equipe e ON e.nu_ine = va.nu_ine
-  WHERE COALESCE(fcp.st_faleceu, 0) = 0
-    AND COALESCE(fcp.st_deletar, 0) = 0
-    AND va.nu_ine IS NOT NULL
+  SELECT ep.pessoa_id, ep.inicio_gestacao,
+    CASE WHEN pu.primeiro_puerperio IS NOT NULL THEN pu.primeiro_puerperio - 1
+      ELSE ep.inicio_gestacao + 294 END::date AS fim_gestacao,
+    pu.primeiro_puerperio IS NOT NULL OR CURRENT_DATE > ep.inicio_gestacao + 294 AS em_puerperio,
+    va.nu_ine, COALESCE(de.no_equipe, 'SEM EQUIPE') AS equipe
+  FROM episodios ep
+  JOIN vinculo_atual va ON va.pessoa_id = ep.pessoa_id
+  LEFT JOIN eventos_puerperio pu ON pu.pessoa_id = ep.pessoa_id
+  LEFT JOIN exclusoes ex ON ex.pessoa_id = ep.pessoa_id
+  LEFT JOIN public.tb_dim_equipe de ON de.nu_ine = va.nu_ine
+  WHERE ex.pessoa_id IS NULL
     AND (
-      CURRENT_DATE BETWEEN g.inicio_gestacao AND g.inicio_gestacao + 294
-      OR p.referencia_puerperio IS NOT NULL
-      OR CURRENT_DATE BETWEEN g.inicio_gestacao + 295 AND g.inicio_gestacao + 336
+      CURRENT_DATE BETWEEN ep.inicio_gestacao AND ep.inicio_gestacao + 294
+      OR pu.primeiro_puerperio BETWEEN CURRENT_DATE - 42 AND CURRENT_DATE
+      OR CURRENT_DATE BETWEEN ep.inicio_gestacao + 295 AND ep.inicio_gestacao + 336
     )
 ),
 consultas AS (
-  SELECT a.co_fat_cidadao_pec AS cid,
+  SELECT i.pessoa_id,
     MIN(t.dt_registro::date) FILTER (
       WHERE t.dt_registro::date <= p.fim_gestacao
-        AND (POSITION('|W78|' IN COALESCE(a.ds_filtro_ciaps,'')) > 0
-          OR POSITION('|W79|' IN COALESCE(a.ds_filtro_ciaps,'')) > 0
-          OR POSITION('|W84|' IN COALESCE(a.ds_filtro_ciaps,'')) > 0
-          OR POSITION('Z34' IN COALESCE(a.ds_filtro_cids,'')) > 0
-          OR POSITION('Z35' IN COALESCE(a.ds_filtro_cids,'')) > 0)
+        AND (
+          COALESCE(a.ds_filtro_ciaps,'') ~ '\|(W03|W78|W79|W81|W84|W85)\|'
+          OR replace(upper(COALESCE(a.ds_filtro_cids,'')),'.','') ~
+            '\|(O10|O11|O12|O13|O14|O15|O16|O20|O21|O22|O23|O24|O25|O26|O28|O29|O30|O31|O32|O33|O34|O35|O36|O40|O41|O43|O44|O46|O47|O48|O752|O753|O98|O990|O991|O992|O993|O994|O995|O996|O997|Z321|Z33|Z34|Z35|Z36|Z640)'
+        )
     ) AS primeira_consulta,
     COUNT(DISTINCT a.co_seq_fat_atd_ind) FILTER (
       WHERE t.dt_registro::date <= p.fim_gestacao
-        AND (POSITION('|W78|' IN COALESCE(a.ds_filtro_ciaps,'')) > 0
-          OR POSITION('|W79|' IN COALESCE(a.ds_filtro_ciaps,'')) > 0
-          OR POSITION('|W84|' IN COALESCE(a.ds_filtro_ciaps,'')) > 0
-          OR POSITION('Z34' IN COALESCE(a.ds_filtro_cids,'')) > 0
-          OR POSITION('Z35' IN COALESCE(a.ds_filtro_cids,'')) > 0)
+        AND (
+          COALESCE(a.ds_filtro_ciaps,'') ~ '\|(W03|W78|W79|W81|W84|W85)\|'
+          OR replace(upper(COALESCE(a.ds_filtro_cids,'')),'.','') ~
+            '\|(O10|O11|O12|O13|O14|O15|O16|O20|O21|O22|O23|O24|O25|O26|O28|O29|O30|O31|O32|O33|O34|O35|O36|O40|O41|O43|O44|O46|O47|O48|O752|O753|O98|O990|O991|O992|O993|O994|O995|O996|O997|Z321|Z33|Z34|Z35|Z36|Z640)'
+        )
     ) AS consultas_gestacao,
     COUNT(DISTINCT a.co_seq_fat_atd_ind) FILTER (
       WHERE p.em_puerperio AND t.dt_registro::date > p.fim_gestacao
-      AND t.dt_registro::date <= p.fim_gestacao + 42
-      AND (POSITION('|W96|' IN COALESCE(a.ds_filtro_ciaps,'')) > 0
-        OR POSITION('Z39' IN COALESCE(a.ds_filtro_cids,'')) > 0)
+        AND t.dt_registro::date <= p.fim_gestacao + 42
+        AND (
+          COALESCE(a.ds_filtro_ciaps,'') ~ '\|(48|49|P29|W18|W19|W70|W90|W91|W92|W93|W94|W95|W96)\|'
+          OR replace(upper(COALESCE(a.ds_filtro_cids,'')),'.','') ~
+            '\|(F53|M830|O10|O152|O266|O722|O723|O85|O86|O87|O90|O91|O92|O94|O98|O99|Z370|Z371|Z372|Z373|Z374|Z375|Z376|Z377|Z379|Z38|Z39)'
+          OR replace(COALESCE(a.ds_filtro_proced_avaliados,''),'.','') LIKE '%0301010129%'
+        )
     ) AS consultas_puerperio
   FROM public.tb_fat_atendimento_individual a
-  JOIN pessoas p ON p.cid = a.co_fat_cidadao_pec
+  JOIN identidades i ON i.cid = a.co_fat_cidadao_pec
+  JOIN pessoas p ON p.pessoa_id = i.pessoa_id
   JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = a.co_dim_tempo
   LEFT JOIN public.tb_dim_cbo c1 ON c1.co_seq_dim_cbo = a.co_dim_cbo_1
   LEFT JOIN public.tb_dim_cbo c2 ON c2.co_seq_dim_cbo = a.co_dim_cbo_2
   WHERE t.dt_registro::date BETWEEN p.inicio_gestacao AND p.fim_gestacao + 42
     AND (
-      REPLACE(COALESCE(c1.nu_cbo,''),'-','') ~ '^(2231|2235|2251|2252|2253)'
-      OR REPLACE(COALESCE(c2.nu_cbo,''),'-','') ~ '^(2231|2235|2251|2252|2253)'
+      replace(COALESCE(c1.nu_cbo,''),'-','') ~ '^(2231|2235|2251|2252|2253)'
+      OR replace(COALESCE(c2.nu_cbo,''),'-','') ~ '^(2231|2235|2251|2252|2253)'
     )
-  GROUP BY a.co_fat_cidadao_pec
+  GROUP BY i.pessoa_id
+),
+consultas_puerperais_mip AS (
+  SELECT i.pessoa_id, COUNT(*) AS registros
+  FROM public.tb_fat_proced_atend_proced pr
+  JOIN identidades i ON i.cid = pr.co_fat_cidadao_pec
+  JOIN pessoas p ON p.pessoa_id = i.pessoa_id
+  JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = pr.co_dim_tempo
+  JOIN public.tb_dim_procedimento dp ON dp.co_seq_dim_procedimento = pr.co_dim_procedimento
+  LEFT JOIN public.tb_dim_cbo cbo ON cbo.co_seq_dim_cbo = pr.co_dim_cbo
+  WHERE p.em_puerperio
+    AND t.dt_registro::date > p.fim_gestacao
+    AND t.dt_registro::date <= p.fim_gestacao + 42
+    AND regexp_replace(COALESCE(dp.nu_identificador::text,''), '[^0-9]', '', 'g') = '0301010129'
+    AND replace(COALESCE(cbo.nu_cbo,''),'-','') ~ '^(2231|2235|2251|2252|2253)'
+  GROUP BY i.pessoa_id
 ),
 medicoes AS (
-  SELECT cid,
+  SELECT pessoa_id,
     COUNT(DISTINCT dia) FILTER (WHERE tem_pa) AS afericoes_pa,
     COUNT(DISTINCT dia) FILTER (WHERE tem_peso_altura) AS antropometrias
   FROM (
-    SELECT a.co_fat_cidadao_pec AS cid, t.dt_registro::date AS dia,
+    SELECT i.pessoa_id, t.dt_registro::date AS dia,
       (a.nu_pressao_sistolica IS NOT NULL AND a.nu_pressao_diastolica IS NOT NULL) AS tem_pa,
       (a.nu_peso IS NOT NULL AND a.nu_altura IS NOT NULL) AS tem_peso_altura
     FROM public.tb_fat_atendimento_individual a
-    JOIN pessoas p ON p.cid = a.co_fat_cidadao_pec
+    JOIN identidades i ON i.cid = a.co_fat_cidadao_pec
+    JOIN pessoas p ON p.pessoa_id = i.pessoa_id
     JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = a.co_dim_tempo
     WHERE t.dt_registro::date BETWEEN p.inicio_gestacao AND p.fim_gestacao
     UNION ALL
-    SELECT v.co_fat_cidadao_pec, t.dt_registro::date,
+    SELECT i.pessoa_id, t.dt_registro::date,
       v.nu_medicao_pressao_arterial IS NOT NULL,
       (v.nu_peso IS NOT NULL AND v.nu_altura IS NOT NULL)
     FROM public.tb_fat_visita_domiciliar v
-    JOIN pessoas p ON p.cid = v.co_fat_cidadao_pec
+    JOIN identidades i ON i.cid = v.co_fat_cidadao_pec
+    JOIN pessoas p ON p.pessoa_id = i.pessoa_id
     JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = v.co_dim_tempo
     WHERE t.dt_registro::date BETWEEN p.inicio_gestacao AND p.fim_gestacao
-  ) x
-  GROUP BY cid
+  ) x GROUP BY pessoa_id
 ),
 visitas AS (
-  SELECT v.co_fat_cidadao_pec AS cid,
+  SELECT i.pessoa_id,
     COUNT(DISTINCT t.dt_registro::date) FILTER (
       WHERE t.dt_registro::date > q.primeira_consulta AND t.dt_registro::date <= p.fim_gestacao
     ) AS visitas_gestacao,
@@ -145,71 +199,80 @@ visitas AS (
         AND t.dt_registro::date <= p.fim_gestacao + 42
     ) AS visitas_puerperio
   FROM public.tb_fat_visita_domiciliar v
-  JOIN pessoas p ON p.cid = v.co_fat_cidadao_pec
-  LEFT JOIN consultas q ON q.cid = p.cid
+  JOIN identidades i ON i.cid = v.co_fat_cidadao_pec
+  JOIN pessoas p ON p.pessoa_id = i.pessoa_id
+  LEFT JOIN consultas q ON q.pessoa_id = p.pessoa_id
   JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = v.co_dim_tempo
   LEFT JOIN public.tb_dim_cbo cbo ON cbo.co_seq_dim_cbo = v.co_dim_cbo
   WHERE t.dt_registro::date BETWEEN p.inicio_gestacao AND p.fim_gestacao + 42
-    AND REPLACE(COALESCE(cbo.nu_cbo,''),'-','') ~ '^(3222|515105)'
-  GROUP BY v.co_fat_cidadao_pec
+    AND replace(COALESCE(cbo.nu_cbo,''),'-','') ~ '^(322255|515105)'
+    AND (
+      COALESCE(v.st_mot_vis_cad_att,0) = 1 OR COALESCE(v.st_mot_vis_visita_periodica,0) = 1
+      OR COALESCE(v.st_mot_vis_busca_ativa,0) = 1 OR COALESCE(v.st_mot_vis_acompanhamento,0) = 1
+      OR COALESCE(v.st_mot_vis_egresso_internacao,0) = 1 OR COALESCE(v.st_mot_vis_ctrl_ambnte_vetor,0) = 1
+      OR COALESCE(v.st_mot_vis_convte_atvidd_cltva,0) = 1 OR COALESCE(v.st_mot_vis_orintacao_prevncao,0) = 1
+      OR COALESCE(v.st_mot_vis_outros,0) = 1
+    )
+  GROUP BY i.pessoa_id
 ),
 dtpa AS (
-  SELECT v.co_fat_cidadao_pec AS cid, COUNT(*) AS registros
+  SELECT i.pessoa_id, COUNT(*) AS registros
   FROM public.tb_fat_vacinacao v
-  JOIN pessoas p ON p.cid = v.co_fat_cidadao_pec
+  JOIN identidades i ON i.cid = v.co_fat_cidadao_pec
+  JOIN pessoas p ON p.pessoa_id = i.pessoa_id
   JOIN public.tb_fat_vacinacao_vacina vv ON vv.co_fat_vacinacao = v.co_seq_fat_vacinacao
-  JOIN public.tb_dim_imunobiologico i ON i.co_seq_dim_imunobiologico = vv.co_dim_imunobiologico
+  JOIN public.tb_dim_imunobiologico im ON im.co_seq_dim_imunobiologico = vv.co_dim_imunobiologico
   JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = vv.co_dim_tempo_vacina_aplicada
-  WHERE NULLIF(regexp_replace(COALESCE(i.nu_identificador::text,''), '[^0-9]', '', 'g'),'')::int = 57
+  WHERE NULLIF(regexp_replace(COALESCE(im.nu_identificador::text,''), '[^0-9]', '', 'g'),'')::int = 57
     AND t.dt_registro::date BETWEEN p.inicio_gestacao + 140 AND p.fim_gestacao
-  GROUP BY v.co_fat_cidadao_pec
+  GROUP BY i.pessoa_id
+),
+exame_eventos AS (
+  SELECT i.pessoa_id, p.inicio_gestacao, p.fim_gestacao, t.dt_registro::date AS dia,
+    regexp_replace(COALESCE(a.ds_filtro_proced_avaliados,''), '[^0-9|]', '', 'g') AS codigos
+  FROM public.tb_fat_atendimento_individual a
+  JOIN identidades i ON i.cid = a.co_fat_cidadao_pec
+  JOIN pessoas p ON p.pessoa_id = i.pessoa_id
+  JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = a.co_dim_tempo
+  WHERE t.dt_registro::date BETWEEN p.inicio_gestacao AND p.fim_gestacao
+  UNION ALL
+  SELECT i.pessoa_id, p.inicio_gestacao, p.fim_gestacao, t.dt_registro::date,
+    regexp_replace(COALESCE(dp.nu_identificador::text,''), '[^0-9]', '', 'g')
+  FROM public.tb_fat_proced_atend_proced pr
+  JOIN identidades i ON i.cid = pr.co_fat_cidadao_pec
+  JOIN pessoas p ON p.pessoa_id = i.pessoa_id
+  JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = pr.co_dim_tempo
+  JOIN public.tb_dim_procedimento dp ON dp.co_seq_dim_procedimento = pr.co_dim_procedimento
+  LEFT JOIN public.tb_dim_cbo cbo ON cbo.co_seq_dim_cbo = pr.co_dim_cbo
+  WHERE t.dt_registro::date BETWEEN p.inicio_gestacao AND p.fim_gestacao
+    AND replace(COALESCE(cbo.nu_cbo,''),'-','') ~ '^(2231|2232|2234|2235|2236|2237|2238|2239|2241|2251|2252|2253|3222|3224|515105)'
 ),
 exames AS (
-  SELECT cid,
-    BOOL_OR(dia <= inicio_gestacao + 97 AND grupo = 'HIV') AS hiv_t1,
-    BOOL_OR(dia <= inicio_gestacao + 97 AND grupo = 'SIFILIS') AS sifilis_t1,
-    BOOL_OR(dia <= inicio_gestacao + 97 AND grupo = 'HEPB') AS hepb_t1,
-    BOOL_OR(dia <= inicio_gestacao + 97 AND grupo = 'HEPC') AS hepc_t1,
-    BOOL_OR(dia BETWEEN inicio_gestacao + 196 AND fim_gestacao AND grupo = 'HIV') AS hiv_t3,
-    BOOL_OR(dia BETWEEN inicio_gestacao + 196 AND fim_gestacao AND grupo = 'SIFILIS') AS sifilis_t3
-  FROM (
-    SELECT a.co_fat_cidadao_pec AS cid, p.inicio_gestacao, p.fim_gestacao,
-      t.dt_registro::date AS dia,
-      CASE
-        WHEN d.codigo ~ '(0214010040|0214010279|0214010058|0213010780|0213010500|0202030300)' THEN 'HIV'
-        WHEN d.codigo ~ '(0214010074|0214010082|0214010252|0202031098|0202031110|0202031179)' THEN 'SIFILIS'
-        WHEN d.codigo ~ '(0214010104|0214010236|0202030784|0202030970|0213010208)' THEN 'HEPB'
-        WHEN d.codigo ~ '(0214010090|0214010309|0202030059|0202030679)' THEN 'HEPC'
-      END AS grupo
-    FROM public.tb_fat_atendimento_individual a
-    JOIN pessoas p ON p.cid = a.co_fat_cidadao_pec
-    JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = a.co_dim_tempo
-    CROSS JOIN LATERAL (
-      SELECT regexp_replace(COALESCE(a.ds_filtro_proced_avaliados,''), '[^0-9|]', '', 'g') AS codigo
-    ) d
-    WHERE t.dt_registro::date BETWEEN p.inicio_gestacao AND p.fim_gestacao
-      AND d.codigo <> ''
-  ) x
-  WHERE grupo IS NOT NULL
-  GROUP BY cid
+  SELECT pessoa_id,
+    BOOL_OR(dia <= inicio_gestacao + 97 AND codigos ~ '(0214010040|0214010279|0214010058|0213010780|0213010500|0202030300)') AS hiv_t1,
+    BOOL_OR(dia <= inicio_gestacao + 97 AND codigos ~ '(0214010074|0214010082|0214010252|0202031098|0202031110|0202031179)') AS sifilis_t1,
+    BOOL_OR(dia <= inicio_gestacao + 97 AND codigos ~ '(0214010104|0214010236|0202030784|0202030970|0213010208)') AS hepb_t1,
+    BOOL_OR(dia <= inicio_gestacao + 97 AND codigos ~ '(0214010090|0214010309|0202030059|0202030679)') AS hepc_t1,
+    BOOL_OR(dia BETWEEN inicio_gestacao + 196 AND fim_gestacao AND codigos ~ '(0214010040|0214010279|0214010058|0213010780|0213010500|0202030300)') AS hiv_t3,
+    BOOL_OR(dia BETWEEN inicio_gestacao + 196 AND fim_gestacao AND codigos ~ '(0214010074|0214010082|0214010252|0202031098|0202031110|0202031179)') AS sifilis_t3
+  FROM exame_eventos GROUP BY pessoa_id
 ),
 saude_bucal AS (
-  SELECT o.co_fat_cidadao_pec AS cid, COUNT(*) AS atividades
+  SELECT i.pessoa_id, COUNT(*) AS atividades
   FROM public.tb_fat_atendimento_odonto o
-  JOIN pessoas p ON p.cid = o.co_fat_cidadao_pec
+  JOIN identidades i ON i.cid = o.co_fat_cidadao_pec
+  JOIN pessoas p ON p.pessoa_id = i.pessoa_id
   JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = o.co_dim_tempo
   LEFT JOIN public.tb_dim_cbo c1 ON c1.co_seq_dim_cbo = o.co_dim_cbo_1
   LEFT JOIN public.tb_dim_cbo c2 ON c2.co_seq_dim_cbo = o.co_dim_cbo_2
   WHERE t.dt_registro::date BETWEEN p.inicio_gestacao AND p.fim_gestacao
-    AND (
-      REPLACE(COALESCE(c1.nu_cbo,''),'-','') ~ '^(2232|3224)'
-      OR REPLACE(COALESCE(c2.nu_cbo,''),'-','') ~ '^(2232|3224)'
-    )
-  GROUP BY o.co_fat_cidadao_pec
+    AND (replace(COALESCE(c1.nu_cbo,''),'-','') ~ '^(2232|3224)'
+      OR replace(COALESCE(c2.nu_cbo,''),'-','') ~ '^(2232|3224)')
+  GROUP BY i.pessoa_id
 ),
 avaliacao AS (
   SELECT p.*,
-    COALESCE((q.primeira_consulta <= p.inicio_gestacao + 83)::int, 0) AS a,
+    COALESCE((q.primeira_consulta <= p.inicio_gestacao + 83)::int,0) AS a,
     (COALESCE(q.consultas_gestacao,0) >= 7)::int AS b,
     (COALESCE(m.afericoes_pa,0) >= 7)::int AS c,
     (COALESCE(m.antropometrias,0) >= 7)::int AS d,
@@ -218,16 +281,17 @@ avaliacao AS (
     (COALESCE(x.hiv_t1,false) AND COALESCE(x.sifilis_t1,false)
       AND COALESCE(x.hepb_t1,false) AND COALESCE(x.hepc_t1,false))::int AS g,
     (COALESCE(x.hiv_t3,false) AND COALESCE(x.sifilis_t3,false))::int AS h,
-    (COALESCE(q.consultas_puerperio,0) >= 1)::int AS i,
+    (COALESCE(q.consultas_puerperio,0) + COALESCE(pm.registros,0) >= 1)::int AS i,
     (COALESCE(v.visitas_puerperio,0) >= 1)::int AS j,
     (COALESCE(sb.atividades,0) >= 1)::int AS k
   FROM pessoas p
-  LEFT JOIN consultas q ON q.cid = p.cid
-  LEFT JOIN medicoes m ON m.cid = p.cid
-  LEFT JOIN visitas v ON v.cid = p.cid
-  LEFT JOIN dtpa f ON f.cid = p.cid
-  LEFT JOIN exames x ON x.cid = p.cid
-  LEFT JOIN saude_bucal sb ON sb.cid = p.cid
+  LEFT JOIN consultas q ON q.pessoa_id = p.pessoa_id
+  LEFT JOIN consultas_puerperais_mip pm ON pm.pessoa_id = p.pessoa_id
+  LEFT JOIN medicoes m ON m.pessoa_id = p.pessoa_id
+  LEFT JOIN visitas v ON v.pessoa_id = p.pessoa_id
+  LEFT JOIN dtpa f ON f.pessoa_id = p.pessoa_id
+  LEFT JOIN exames x ON x.pessoa_id = p.pessoa_id
+  LEFT JOIN saude_bucal sb ON sb.pessoa_id = p.pessoa_id
 )
 SELECT nu_ine, equipe,
   SUM(a)::int AS pratica_a, SUM(b)::int AS pratica_b,
@@ -236,9 +300,11 @@ SELECT nu_ine, equipe,
   SUM(g)::int AS pratica_g, SUM(h)::int AS pratica_h,
   SUM(i)::int AS pratica_i, SUM(j)::int AS pratica_j,
   SUM(k)::int AS pratica_k,
-  SUM(10 * a + 9 * (b + c + d + e + f + g + h + i + j + k))::int AS numerador_pontos,
+  SUM(10*a + 9*(b+c+d+e+f+g+h+i+j+k))::int AS numerador_pontos,
   COUNT(*)::int AS denominador_gestantes_puerperas,
-  ROUND(SUM(10 * a + 9 * (b + c + d + e + f + g + h + i + j + k))::numeric / NULLIF(COUNT(*),0), 2) AS resultado_percentual
+  COUNT(*) FILTER (WHERE NOT em_puerperio)::int AS gestantes_ativas,
+  COUNT(*) FILTER (WHERE em_puerperio)::int AS puerperas_ativas,
+  ROUND(SUM(10*a + 9*(b+c+d+e+f+g+h+i+j+k))::numeric / NULLIF(COUNT(*),0),2) AS resultado_percentual
 FROM avaliacao
 GROUP BY nu_ine, equipe
 ORDER BY resultado_percentual DESC NULLS LAST, equipe;
