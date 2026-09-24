@@ -18,8 +18,14 @@ WITH criancas AS (
     -- contra tb_equipe (tp_equipe 70/76) para impedir ESB/eMulti no denominador.
     AND EXISTS (
       SELECT 1 FROM public.tb_equipe eq
-      WHERE eq.nu_ine = e.nu_ine
-        AND eq.tp_equipe IN (70,76)
+      WHERE regexp_replace(COALESCE(eq.nu_ine::text,''), '[^0-9]', '', 'g') =
+            regexp_replace(COALESCE(e.nu_ine::text,''), '[^0-9]', '', 'g')
+        -- PEC local stores team type as an internal code in some versions;
+        -- accept canonical 70/76 when present, otherwise identify eSF/eAP by name.
+        AND (
+          eq.tp_equipe IN (70,76)
+          OR UPPER(COALESCE(eq.no_equipe,'')) ~ '(^|[^A-Z])(ESF|EAP)([^A-Z]|$)'
+        )
         AND COALESCE(eq.st_ativo,1) = 1
     )
   ORDER BY c.co_seq_fat_cidadao_pec
