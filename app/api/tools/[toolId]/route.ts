@@ -26,6 +26,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ to
     if (code === "FORBIDDEN" || code === "FORBIDDEN_NOMINAL") return NextResponse.json({ message: "Seu perfil não possui acesso a dados nominais." }, { status: 403 });
     if (code === "Tool não homologada.") return NextResponse.json({ message: code }, { status: 404 });
     if (code === "ACTIVE_SEARCH_CACHE_NOT_READY") return NextResponse.json({ message: "A busca ativa ainda não possui uma carga diária disponível. Solicite a atualização do cache na Administração." }, { status: 503 });
+    if (code === "TOOL_CACHE_NOT_READY") return NextResponse.json({ message: "O cache diário desta consulta ainda não está disponível. Atualize o cache na Administração." }, { status: 503 });
     return NextResponse.json({ message: code }, { status: 500 });
   }
 }
