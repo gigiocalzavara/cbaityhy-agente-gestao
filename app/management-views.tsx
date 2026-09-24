@@ -335,14 +335,63 @@ function ActiveSearch({ municipalityName }: { municipalityName: string }) {
   const [ine, setIne] = useState("");
   const [name, setName] = useState("");
   const [teams, setTeams] = useState<Record<string, unknown>[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+
   useEffect(() => {
     let active = true;
+    setIne(""); setResult(null); setCounts({});
     void requestTool("tool_listar_esf").then((data) => { if (active) setTeams(data.rows); }).catch(() => undefined);
     return () => { active = false; };
   }, [municipalityName]);
-  async function run(id: string, parameters: Record<string, string | null>) { setLoading(id); setError(""); setResult(null); try { setResult(await requestTool(id, parameters)); } catch (err) { setError(err instanceof Error ? err.message : "Falha na busca ativa."); } finally { setLoading(""); } }
-  const teamFilter = <label>eSF <span>opcional</span><select value={ine} onChange={(event) => setIne(event.target.value)}><option value="">Todas as eSF</option>{teams.map((team) => <option key={String(team.ine)} value={String(team.ine)}>{String(team.equipe)} · {String(team.ine)}</option>)}</select></label>;
-  return <div className="module-page"><ModuleHeader eyebrow="CUIDADO PRIORITÁRIO" title="Busca ativa" description="Listas operacionais para gestores acompanharem pessoas e equipes do município." municipalityName={municipalityName} /><div className="active-search-filter">{teamFilter}</div><div className="active-search-grid"><article className="action-card"><span className="action-icon">G</span><div><strong>Gestantes com pré-natal atrasado</strong><p>Pessoas com registro recente de gestação e mais de 30 dias sem consulta.</p></div><button disabled={Boolean(loading)} onClick={() => void run("tool_busca_ativa_gestantes_atraso", { ine: ine || null })}>{loading === "tool_busca_ativa_gestantes_atraso" ? "Consultando…" : "Gerar lista"}</button></article><article className="action-card"><span className="action-icon">60+</span><div><strong>Idosos sem acompanhamento</strong><p>Pessoas com 60 anos ou mais sem atendimento registrado nos últimos 12 meses.</p></div><button disabled={Boolean(loading)} onClick={() => void run("tool_busca_ativa_idosos", { ine: ine || null })}>{loading === "tool_busca_ativa_idosos" ? "Consultando…" : "Gerar lista"}</button></article><article className="action-card duplicate-card"><span className="action-icon">2×</span><div><strong>Possíveis cadastros duplicados</strong><p>Pesquisa nome, CPF, CNS, nascimento e mãe; inclui cadastros inativos e recomenda o registro principal.</p><label>Nome do cidadão<input value={name} onChange={(event) => setName(event.target.value.slice(0, 100))} placeholder="Digite ao menos 3 caracteres" /></label></div><button disabled={Boolean(loading) || name.trim().length < 3} onClick={() => void run("tool_busca_duplicidades_cadastrais", { nome: name })}>{loading === "tool_busca_duplicidades_cadastrais" ? "Analisando…" : "Pesquisar duplicidades"}</button></article></div>{error && <div className="module-alert">{error}</div>}{result && <ResultTable result={result} />}</div>;
+
+  useEffect(() => {
+    let active = true;
+    const parameters = { ine: ine || null };
+    void Promise.allSettled([
+      requestTool("tool_busca_ativa_gestantes_atraso", parameters),
+      requestTool("tool_busca_ativa_idosos", parameters),
+    ]).then((items) => {
+      if (!active) return;
+      setCounts({
+        gestantes: items[0].status === "fulfilled" ? items[0].value.rowCount : 0,
+        idosos: items[1].status === "fulfilled" ? items[1].value.rowCount : 0,
+      });
+    });
+    return () => { active = false; };
+  }, [ine, municipalityName]);
+
+  async function run(id: string, parameters: Record<string, string | null>) {
+    setLoading(id); setError(""); setResult(null);
+    try { setResult(await requestTool(id, parameters)); }
+    catch (err) { setError(err instanceof Error ? err.message : "Falha na busca ativa."); }
+    finally { setLoading(""); }
+  }
+
+  const selectedTeam = teams.find((team) => String(team.ine) === ine);
+  const scopeLabel = selectedTeam ? `${String(selectedTeam.equipe)} · INE ${ine}` : "Todas as eSF do município";
+  const cards = [
+    { id:"tool_busca_ativa_gestantes_atraso", icon:"G", title:"Gestantes com cuidado pendente", text:"Gestantes identificadas com acompanhamento pré-natal atrasado.", count:counts.gestantes },
+    { id:"tool_busca_ativa_idosos", icon:"60+", title:"Idosos sem acompanhamento", text:"Pessoas com 60 anos ou mais sem atendimento registrado nos últimos 12 meses.", count:counts.idosos },
+  ];
+
+  return <div className="module-page active-search-page">
+    <ModuleHeader eyebrow="CUIDADO PRIORITÁRIO" title="Busca ativa" description="Transforme os dados do PEC em listas operacionais por equipe e linha de cuidado." municipalityName={municipalityName} />
+    <section className="active-search-filter">
+      <label>Equipe / eSF<select value={ine} onChange={(event) => { setIne(event.target.value); setResult(null); }}><option value="">Todas as eSF</option>{teams.map((team) => <option key={String(team.ine)} value={String(team.ine)}>{String(team.equipe)} · {String(team.ine)}</option>)}</select></label>
+      <div><span>Escopo atual</span><strong>{scopeLabel}</strong><small>{ine ? "Todas as consultas abaixo respeitam este INE." : "Selecione uma equipe para restringir todas as buscas."}</small></div>
+    </section>
+    <section className="active-search-summary"><div><span>Pessoas que precisam de atenção</span><strong>{numberValue(counts.gestantes) + numberValue(counts.idosos)}</strong><small>Somatório das buscas nominais disponíveis no escopo atual</small></div><div><span>Equipe selecionada</span><strong>{ine ? String(selectedTeam?.equipe || "eSF") : "Município"}</strong><small>{ine ? `INE ${ine}` : `${teams.length} equipes disponíveis`}</small></div></section>
+    <div className="active-search-grid">
+      {cards.map((card) => <article className="action-card" key={card.id}><span className="action-icon">{card.icon}</span><div><strong>{card.title}</strong><p>{card.text}</p><small>{card.count ?? "—"} pessoas no escopo atual</small></div><button disabled={Boolean(loading)} onClick={() => void run(card.id, { ine: ine || null })}>{loading === card.id ? "Consultando…" : "Ver lista"}</button></article>)}
+      <article className="action-card"><span className="action-icon">C2</span><div><strong>Crianças com cuidado pendente</strong><p>Camada nominal preparada para receber as boas práticas do C2 validadas no backend.</p></div><button disabled>Em implantação</button></article>
+      <article className="action-card"><span className="action-icon">C4</span><div><strong>Pessoas com diabetes</strong><p>Pendências de acompanhamento serão expostas pela mesma camada nominal consumida pela IA.</p></div><button disabled>Em implantação</button></article>
+      <article className="action-card"><span className="action-icon">C5</span><div><strong>Pessoas com hipertensão</strong><p>Busca por práticas pendentes, sempre filtrável por INE/eSF.</p></div><button disabled>Em implantação</button></article>
+      <article className="action-card"><span className="action-icon">C7</span><div><strong>Prevenção e rastreamento</strong><p>Listas nominais do cuidado preventivo conforme regras homologadas.</p></div><button disabled>Em implantação</button></article>
+      <article className="action-card duplicate-card"><span className="action-icon">2×</span><div><strong>Possíveis cadastros duplicados</strong><p>Pesquisa nome, CPF, CNS, nascimento e mãe; inclui cadastros inativos e recomenda o registro principal.</p><label>Nome do cidadão<input value={name} onChange={(event) => setName(event.target.value.slice(0, 100))} placeholder="Digite ao menos 3 caracteres" /></label></div><button disabled={Boolean(loading) || name.trim().length < 3} onClick={() => void run("tool_busca_duplicidades_cadastrais", { nome: name })}>{loading === "tool_busca_duplicidades_cadastrais" ? "Analisando…" : "Pesquisar duplicidades"}</button></article>
+    </div>
+    {error && <div className="module-alert">{error}</div>}
+    {result && <ResultTable result={result} municipalityName={municipalityName} />}
+  </div>;
 }
 
 function Territory({ municipalityName }: { municipalityName: string }) {
