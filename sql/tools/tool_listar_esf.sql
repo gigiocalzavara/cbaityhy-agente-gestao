@@ -1,8 +1,14 @@
-SELECT DISTINCT e.nu_ine AS ine,
-       e.no_equipe AS equipe
-FROM public.tb_equipe e
-WHERE e.st_ativo = 1
-  AND e.tp_equipe = 56
-  AND e.nu_ine IS NOT NULL
-  AND trim(e.nu_ine) <> ''
-ORDER BY equipe, ine;
+WITH vinculadas AS (
+  SELECT DISTINCT NULLIF(TRIM(cve.nu_ine), '') AS ine
+  FROM public.tb_cidadao_vinculacao_equipe cve
+  WHERE NULLIF(TRIM(cve.nu_ine), '') IS NOT NULL
+    AND COALESCE(cve.st_saida_cadastro_obito, 0) = 0
+    AND COALESCE(cve.st_saida_cadastro_territorio, 0) = 0
+)
+SELECT
+  v.ine,
+  COALESCE(NULLIF(TRIM(e.no_equipe), ''), 'ESF ' || v.ine) AS equipe
+FROM vinculadas v
+LEFT JOIN public.tb_equipe e
+  ON NULLIF(TRIM(e.nu_ine), '') = v.ine
+ORDER BY equipe, v.ine;
