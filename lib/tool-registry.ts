@@ -121,7 +121,7 @@ function describeTool(id: string) {
     tool_indicador_idoso: "Indicador de avaliação anual da pessoa idosa. Pode filtrar por INE.",
     tool_busca_ativa_idosos: "Lista nominal de idosos sem acompanhamento recente. Dado sensível; pode filtrar por INE.",
     tool_indicador_vacinacao_infantil: "Cobertura de Penta e VIP para crianças de 12 a 23 meses, por equipe.",
-    tool_censo_gestantes: "Censo agregado de gestantes ativas por equipe. Pode filtrar por INE.",
+    tool_censo_gestantes: "Censo detalhado de gestantes e puérperas por equipe, derivado exclusivamente do cache diário do C3. Retorna totais, resultado C3, cumprimento/pendência das práticas A–K e detalhes operacionais das pessoas com pendências. Pode filtrar por INE.",
     tool_busca_territorial_rua: "Censo territorial agregado por logradouro. Requer logradouro e pode filtrar por INE.",
     tool_auditoria_cadastros: "Auditoria de cadastros ativos e atualização cadastral nos últimos 24 meses.",
     tool_indicador_saude_bucal_b1: "Prévia mensal B1 filtrada pelo município ativo: primeiras consultas odontológicas programáticas divididas pela população ativa da eSF/eAP de referência, por eSB/INE.",
@@ -154,6 +154,58 @@ export async function executeTool(toolId: string, rawArguments: Record<string, u
   const { clean, values } = sanitizeArguments(meta, rawArguments);
   if (meta.municipalityScoped) clean.municipality_ibge = context.municipalityIbgeCode;
   const cacheMode = context.cacheMode || "prefer";
+
+  // O censo de gestantes usado pela IA é derivado exclusivamente dos snapshots
+  // já publicados do C3. Em tempo de conversa, nunca abre conexão com o PEC.
+  if (toolId === "tool_censo_gestantes" && cacheMode === "prefer" && !context.activeSearchRefresh) {
+    const c3 = await readToolCache(context.municipalityId, "tool_indicador_saude_360_c3", {});
+    if (!c3) throw new Error("TOOL_CACHE_NOT_READY");
+
+    const ine = clean.ine;
+    const teams = c3.rows.filter((row) => !ine || String(row.nu_ine || row.ine || "") === ine);
+    if (!teams.length) {
+      return { toolId, kind: "aggregate", nominal: false, chart: true, parameters: clean, rowCount: 0, rows: [], cache: c3.cache };
+    }
+
+    const pending = await readActiveSearchCache(context.municipalityId, "tool_busca_ativa_c3", { ine: ine || null });
+    const pendingRows = pending?.rows || [];
+    const practiceCodes = ["a","b","c","d","e","f","g","h","i","j","k"];
+
+    const rows = teams.map((row) => {
+      const teamIne = String(row.nu_ine || row.ine || "");
+      const teamPending = pendingRows.filter((item) => String(item.ine || item.nu_ine || "") === teamIne);
+      const denominator = Number(row.denominador_gestantes_puerperas || 0);
+      const gestantes = Number(row.gestantes_ativas || 0);
+      const puerperas = Number(row.puerperas_ativas || 0);
+      const practices = Object.fromEntries(practiceCodes.map((code) => {
+        const completed = Number(row["pratica_" + code] || 0);
+        return ["pratica_" + code, {
+          cumpridas: completed,
+          pendentes: Math.max(0, denominator - completed),
+          percentual: denominator ? Math.round((completed / denominator) * 1000) / 10 : 0,
+        }];
+      }));
+      return {
+        ine: teamIne,
+        equipe: row.equipe,
+        total_acompanhadas_c3: denominator,
+        gestantes_ativas: gestantes,
+        puerperas_ativas: puerperas,
+        resultado_c3_percentual: Number(row.resultado_percentual || 0),
+        ...practices,
+        pessoas_com_pendencias: teamPending.length,
+        pendencias_detalhadas: teamPending,
+      };
+    });
+
+    return {
+      toolId, kind: "aggregate", nominal: false, chart: true, parameters: clean,
+      rowCount: rows.length, rows,
+      cache: c3.cache,
+      derivedFrom: ["tool_indicador_saude_360_c3", "tool_busca_ativa_c3"],
+    };
+  }
+
   const supportsDailyNominalCache = meta.nominal && meta.parameters.every((parameter) => parameter === "ine");
   if (supportsDailyNominalCache && cacheMode === "prefer" && !context.activeSearchRefresh) {
     const cached = await readActiveSearchCache(context.municipalityId, toolId, clean);
