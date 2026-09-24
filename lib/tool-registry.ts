@@ -162,6 +162,8 @@ export async function executeTool(toolId: string, rawArguments: Record<string, u
   if (!meta.nominal && cacheMode === "prefer") {
     const cached = await readToolCache(context.municipalityId, toolId, clean);
     if (cached) return cached;
+    // Runtime reads are cache-only. PEC access is reserved for explicit refresh jobs.
+    throw new Error("TOOL_CACHE_NOT_READY");
   }
   const sqlTemplate = await readFile(path.join(process.cwd(), meta.sql), "utf8");
   const municipalityPlaceholder = `$${values.length + 1}`;
