@@ -8,11 +8,16 @@ export async function POST(request: NextRequest, context: { params: Promise<{ to
     const { toolId } = await context.params;
     if (!isHomologatedTool(toolId)) return NextResponse.json({ message: "Tool não homologada." }, { status: 404 });
     const body = await request.json().catch(() => ({}));
+    // Indicator screens may explicitly request a fresh PEC calculation after
+    // methodology/SQL changes instead of silently serving yesterday's aggregate.
+    const requestedCacheMode = body?.cacheMode;
+    const cacheMode = requestedCacheMode === "refresh" || requestedCacheMode === "bypass" ? requestedCacheMode : undefined;
     const result = await executeTool(toolId, body?.parameters || {}, {
       role: identity.role,
       municipalityId: identity.municipalityId,
       municipalityIbgeCode: identity.municipalityIbgeCode,
       nominalAccess: identity.nominalAccess,
+      cacheMode,
     });
     return NextResponse.json(result);
   } catch (error) {
