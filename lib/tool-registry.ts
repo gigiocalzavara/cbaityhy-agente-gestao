@@ -115,6 +115,7 @@ function describeTool(id: string) {
   const descriptions: Record<string, string> = {
     tool_indicador_citopatologico: "Cobertura de rastreamento citopatológico em mulheres elegíveis, por equipe, nos últimos 36 meses.",
     tool_busca_ativa_gestantes_atraso: "Lista nominal de gestantes com acompanhamento pré-natal atrasado. Dado sensível; use apenas quando o usuário pedir busca ativa nominal.",
+    tool_busca_ativa_c3: "Busca ativa C3 de gestantes e puérperas com uma ou mais boas práticas A–K pendentes, filtrável por INE/eSF.",
     tool_indicador_hipertensao: "Indicador de acompanhamento de hipertensão por equipe nos últimos 6 meses.",
     tool_indicador_diabetes: "Indicador de acompanhamento de diabetes/HbA1c por equipe nos últimos 6 meses.",
     tool_indicador_idoso: "Indicador de avaliação anual da pessoa idosa. Pode filtrar por INE.",
