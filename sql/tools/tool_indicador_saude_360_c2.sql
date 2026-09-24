@@ -32,6 +32,12 @@ consultas AS (
       COALESCE(cbo1.nu_cbo,'') ~ '^(2235|2231|2251|2252|2253)'
       OR COALESCE(cbo2.nu_cbo,'') ~ '^(2235|2231|2251|2252|2253)'
     )
+    -- Nota Metodológica C2 (24/06/2026): A e B exigem Problema/Condição Avaliada "Puericultura".
+    -- No PEC, ao habilitar puericultura, são adicionados automaticamente CIAP A98 e CID Z00.1.
+    AND (
+      UPPER(COALESCE(a.ds_filtro_ciaps,'')) LIKE '%A98%'
+      OR REPLACE(UPPER(COALESCE(a.ds_filtro_cids,'')),'.','') LIKE '%Z001%'
+    )
   GROUP BY a.co_fat_cidadao_pec
 ),
 antropometria AS (
@@ -77,25 +83,66 @@ visitas AS (
     AND (COALESCE(v.st_acomp_recem_nascido,0) = 1 OR COALESCE(v.st_acomp_crianca,0) = 1)
   GROUP BY v.co_fat_cidadao_pec
 ),
-vacinas AS (
-  SELECT v.co_fat_cidadao_pec AS cid,
-    COUNT(DISTINCT v.co_seq_fat_vacinacao) FILTER (
-      WHERE UPPER(COALESCE(v.ds_filtro_imunobiologico,'')) LIKE ANY (ARRAY['%PENTA%','%DTP%','%HEXA%'])
-    ) AS dtp_hb_hib,
-    COUNT(DISTINCT v.co_seq_fat_vacinacao) FILTER (
-      WHERE UPPER(COALESCE(v.ds_filtro_imunobiologico,'')) LIKE ANY (ARRAY['%VIP%','%POLIO%'])
-    ) AS polio,
-    COUNT(DISTINCT v.co_seq_fat_vacinacao) FILTER (
-      WHERE UPPER(COALESCE(v.ds_filtro_imunobiologico,'')) LIKE ANY (ARRAY['%PNEUMO%'])
-    ) AS pneumo,
-    COUNT(DISTINCT v.co_seq_fat_vacinacao) FILTER (
-      WHERE UPPER(COALESCE(v.ds_filtro_imunobiologico,'')) LIKE ANY (ARRAY['%TRIPLICE VIRAL%','%TRÍPLICE VIRAL%','%TETRA VIRAL%','%SCR%'])
-    ) AS triplice_viral
+vacinas_eventos AS (
+  SELECT
+    v.co_fat_cidadao_pec AS cid,
+    tv.dt_registro::date AS dia,
+    NULLIF(regexp_replace(COALESCE(i.nu_identificador::text,''), '[^0-9]', '', 'g'),'')::int AS vacina
   FROM public.tb_fat_vacinacao v
+  JOIN public.tb_fat_vacinacao_vacina vv ON vv.co_fat_vacinacao = v.co_seq_fat_vacinacao
+  JOIN public.tb_dim_imunobiologico i ON i.co_seq_dim_imunobiologico = vv.co_dim_imunobiologico
+  JOIN public.tb_dim_tempo tv ON tv.co_seq_dim_tempo = vv.co_dim_tempo_vacina_aplicada
   JOIN criancas c ON c.cid = v.co_fat_cidadao_pec
-  JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = v.co_dim_tempo
-  WHERE t.dt_registro::date BETWEEN c.nascimento AND LEAST(CURRENT_DATE, (c.nascimento + INTERVAL '2 years')::date)
-  GROUP BY v.co_fat_cidadao_pec
+  WHERE tv.dt_registro::date BETWEEN c.nascimento AND LEAST(CURRENT_DATE, (c.nascimento + INTERVAL '2 years')::date)
+),
+vacinas AS (
+  SELECT c.cid,
+    (
+      -- Difteria/tétano/coqueluche: 3 doses, intervalo mínimo de 30 dias.
+      EXISTS (
+        SELECT 1 FROM vacinas_eventos x1
+        JOIN vacinas_eventos x2 ON x2.cid=x1.cid AND x2.dia>=x1.dia+30
+        JOIN vacinas_eventos x3 ON x3.cid=x1.cid AND x3.dia>=x2.dia+30
+        WHERE x1.cid=c.cid AND x1.vacina IN (29,39,42,43,46,47,58)
+          AND x2.vacina IN (29,39,42,43,46,47,58) AND x3.vacina IN (29,39,42,43,46,47,58)
+      )
+      -- Hepatite B: 3 doses com componente HepB.
+      AND EXISTS (
+        SELECT 1 FROM vacinas_eventos x1
+        JOIN vacinas_eventos x2 ON x2.cid=x1.cid AND x2.dia>=x1.dia+30
+        JOIN vacinas_eventos x3 ON x3.cid=x1.cid AND x3.dia>=x2.dia+30
+        WHERE x1.cid=c.cid AND x1.vacina IN (9,42,43)
+          AND x2.vacina IN (9,42,43) AND x3.vacina IN (9,42,43)
+      )
+      -- Hib: 3 doses com componente Haemophilus influenzae b.
+      AND EXISTS (
+        SELECT 1 FROM vacinas_eventos x1
+        JOIN vacinas_eventos x2 ON x2.cid=x1.cid AND x2.dia>=x1.dia+30
+        JOIN vacinas_eventos x3 ON x3.cid=x1.cid AND x3.dia>=x2.dia+30
+        WHERE x1.cid=c.cid AND x1.vacina IN (17,29,39,42,43)
+          AND x2.vacina IN (17,29,39,42,43) AND x3.vacina IN (17,29,39,42,43)
+      )
+      -- VIP: 3 doses, intervalo mínimo de 30 dias.
+      AND EXISTS (
+        SELECT 1 FROM vacinas_eventos x1
+        JOIN vacinas_eventos x2 ON x2.cid=x1.cid AND x2.dia>=x1.dia+30
+        JOIN vacinas_eventos x3 ON x3.cid=x1.cid AND x3.dia>=x2.dia+30
+        WHERE x1.cid=c.cid AND x1.vacina IN (22,29,43,58)
+          AND x2.vacina IN (22,29,43,58) AND x3.vacina IN (22,29,43,58)
+      )
+      -- SCR/SCRV: 2 doses; doses antes de 12 meses não contam.
+      AND (SELECT COUNT(DISTINCT x.dia) FROM vacinas_eventos x
+           WHERE x.cid=c.cid AND x.vacina IN (24,56)
+             AND x.dia >= (c.nascimento + INTERVAL '12 months')::date) >= 2
+      -- Pneumocócica: 2 doses, intervalo mínimo de 30 dias.
+      AND EXISTS (
+        SELECT 1 FROM vacinas_eventos x1
+        JOIN vacinas_eventos x2 ON x2.cid=x1.cid AND x2.dia>=x1.dia+30
+        WHERE x1.cid=c.cid AND x1.vacina IN (26,59,106,107)
+          AND x2.vacina IN (26,59,106,107)
+      )
+    )::int AS esquema_completo
+  FROM criancas c
 ),
 avaliacao AS (
   SELECT c.*,
@@ -103,8 +150,7 @@ avaliacao AS (
     (COALESCE(q.consultas_2a,0) >= 9)::int AS b,
     (COALESCE(an.registros,0) >= 9)::int AS cc,
     (COALESCE(vd.visita_30d,0) >= 1 AND COALESCE(vd.visita_6m,0) >= 1)::int AS d,
-    (COALESCE(va.dtp_hb_hib,0) >= 3 AND COALESCE(va.polio,0) >= 3
-      AND COALESCE(va.pneumo,0) >= 2 AND COALESCE(va.triplice_viral,0) >= 2)::int AS e
+    COALESCE(va.esquema_completo,0)::int AS e
   FROM criancas c
   LEFT JOIN consultas q ON q.cid = c.cid
   LEFT JOIN antropometria an ON an.cid = c.cid
