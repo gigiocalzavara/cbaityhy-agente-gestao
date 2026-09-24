@@ -22,6 +22,8 @@ const saude360Domains = [
   { domain: "atendimento_individual", candidates: ["tb_fat_atendimento_individual"] },
   { domain: "visita_domiciliar", candidates: ["tb_fat_visita_domiciliar", "tb_fat_visita_domiciliar_territorio"] },
   { domain: "vacinacao", candidates: ["tb_fat_vacinacao"] },
+  { domain: "vacinacao_detalhe", candidates: ["tb_fat_vacinacao_vacina"] },
+  { domain: "dimensao_imunobiologico", candidates: ["tb_dim_imunobiologico"] },
   { domain: "procedimento", candidates: ["tb_fat_proced_atend_proced", "tb_fat_procedimento"] },
   { domain: "problema_condicao", candidates: ["tb_cidadao_problema", "tb_problema", "tb_prontuario"] },
   { domain: "saude_bucal", candidates: ["tb_fat_atendimento_odonto", "tb_fat_atendimento_odonto_proced"] },
@@ -106,7 +108,7 @@ export async function validatePecToolCatalog(municipalityId: string, municipalit
     saude360Schema,
     c2Readiness: (() => {
       const byDomain = new Map(saude360Schema.map((item: any) => [item.domain, item]));
-      const required = ["atendimento_individual", "visita_domiciliar", "vacinacao", "vinculacao", "cidadao_pec", "dimensao_tempo"];
+      const required = ["atendimento_individual", "visita_domiciliar", "vacinacao", "vacinacao_detalhe", "dimensao_imunobiologico", "vinculacao", "cidadao_pec", "dimensao_tempo"];
       const missing = required.filter((domain) => byDomain.get(domain)?.status !== "found");
       return {
         readyForMapping: missing.length === 0,
