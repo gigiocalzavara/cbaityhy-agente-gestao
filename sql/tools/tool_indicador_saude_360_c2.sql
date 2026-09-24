@@ -1,4 +1,4 @@
-WITH criancas AS (
+WITH criancas AS MATERIALIZED (
   SELECT DISTINCT ON (c.co_seq_fat_cidadao_pec)
     c.co_seq_fat_cidadao_pec AS cid,
     c.nu_cpf_cidadao,
@@ -19,7 +19,7 @@ WITH criancas AS (
     -- sobre tp_equipe: o INE continua explícito no resultado para auditoria.
   ORDER BY c.co_seq_fat_cidadao_pec
 ),
-consultas AS (
+consultas AS MATERIALIZED (
   SELECT a.co_fat_cidadao_pec AS cid,
     COUNT(DISTINCT a.co_seq_fat_atd_ind) FILTER (
       WHERE t.dt_registro::date BETWEEN c.nascimento AND c.nascimento + 30
@@ -43,7 +43,7 @@ consultas AS (
     )
   GROUP BY a.co_fat_cidadao_pec
 ),
-antropometria AS (
+antropometria AS MATERIALIZED (
   SELECT x.cid, COUNT(DISTINCT x.dia) AS registros
   FROM (
     SELECT a.co_fat_cidadao_pec AS cid, t.dt_registro::date AS dia
@@ -69,7 +69,7 @@ antropometria AS (
       AND t.dt_registro::date BETWEEN c.nascimento AND LEAST(CURRENT_DATE, (c.nascimento + INTERVAL '2 years')::date)
   ) x GROUP BY x.cid
 ),
-visitas AS (
+visitas AS MATERIALIZED (
   SELECT v.co_fat_cidadao_pec AS cid,
     COUNT(DISTINCT t.dt_registro::date) FILTER (
       WHERE t.dt_registro::date BETWEEN c.nascimento AND c.nascimento + 30
@@ -86,7 +86,7 @@ visitas AS (
     AND (COALESCE(v.st_acomp_recem_nascido,0) = 1 OR COALESCE(v.st_acomp_crianca,0) = 1)
   GROUP BY v.co_fat_cidadao_pec
 ),
-vacinas_eventos AS (
+vacinas_eventos AS MATERIALIZED (
   SELECT
     v.co_fat_cidadao_pec AS cid,
     tv.dt_registro::date AS dia,
@@ -98,7 +98,7 @@ vacinas_eventos AS (
   JOIN criancas c ON c.cid = v.co_fat_cidadao_pec
   WHERE tv.dt_registro::date BETWEEN c.nascimento AND LEAST(CURRENT_DATE, (c.nascimento + INTERVAL '2 years')::date)
 ),
-vacinas_componentes AS (
+vacinas_componentes AS MATERIALIZED (
   SELECT c.cid, c.nascimento,
     ARRAY_AGG(DISTINCT x.dia ORDER BY x.dia) FILTER (WHERE x.vacina IN (29,39,42,43,46,47,58)) AS dtp,
     ARRAY_AGG(DISTINCT x.dia ORDER BY x.dia) FILTER (WHERE x.vacina IN (9,42,43)) AS hepb,
