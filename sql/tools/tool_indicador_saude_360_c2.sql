@@ -98,57 +98,34 @@ vacinas_eventos AS (
   JOIN criancas c ON c.cid = v.co_fat_cidadao_pec
   WHERE tv.dt_registro::date BETWEEN c.nascimento AND LEAST(CURRENT_DATE, (c.nascimento + INTERVAL '2 years')::date)
 ),
-vacinas AS (
-  SELECT c.cid,
-    (
-      EXISTS (
-        SELECT 1 FROM vacinas_eventos x1
-        JOIN vacinas_eventos x2 ON x2.cid=x1.cid AND x2.dia>=x1.dia+30
-        JOIN vacinas_eventos x3 ON x3.cid=x1.cid AND x3.dia>=x2.dia+30
-        WHERE x1.cid=c.cid
-          AND x1.vacina IN (29,39,42,43,46,47,58)
-          AND x2.vacina IN (29,39,42,43,46,47,58)
-          AND x3.vacina IN (29,39,42,43,46,47,58)
-      )
-      AND EXISTS (
-        SELECT 1 FROM vacinas_eventos x1
-        JOIN vacinas_eventos x2 ON x2.cid=x1.cid AND x2.dia>=x1.dia+30
-        JOIN vacinas_eventos x3 ON x3.cid=x1.cid AND x3.dia>=x2.dia+30
-        WHERE x1.cid=c.cid
-          AND x1.vacina IN (9,42,43)
-          AND x2.vacina IN (9,42,43)
-          AND x3.vacina IN (9,42,43)
-      )
-      AND EXISTS (
-        SELECT 1 FROM vacinas_eventos x1
-        JOIN vacinas_eventos x2 ON x2.cid=x1.cid AND x2.dia>=x1.dia+30
-        JOIN vacinas_eventos x3 ON x3.cid=x1.cid AND x3.dia>=x2.dia+30
-        WHERE x1.cid=c.cid
-          AND x1.vacina IN (17,29,39,42,43)
-          AND x2.vacina IN (17,29,39,42,43)
-          AND x3.vacina IN (17,29,39,42,43)
-      )
-      AND EXISTS (
-        SELECT 1 FROM vacinas_eventos x1
-        JOIN vacinas_eventos x2 ON x2.cid=x1.cid AND x2.dia>=x1.dia+30
-        JOIN vacinas_eventos x3 ON x3.cid=x1.cid AND x3.dia>=x2.dia+30
-        WHERE x1.cid=c.cid
-          AND x1.vacina IN (22,29,43,58)
-          AND x2.vacina IN (22,29,43,58)
-          AND x3.vacina IN (22,29,43,58)
-      )
-      AND (SELECT COUNT(DISTINCT x.dia) FROM vacinas_eventos x
-           WHERE x.cid=c.cid AND x.vacina IN (24,56)
-             AND x.dia >= (c.nascimento + INTERVAL '12 months')::date) >= 2
-      AND EXISTS (
-        SELECT 1 FROM vacinas_eventos x1
-        JOIN vacinas_eventos x2 ON x2.cid=x1.cid AND x2.dia>=x1.dia+30
-        WHERE x1.cid=c.cid
-          AND x1.vacina IN (26,59,106,107)
-          AND x2.vacina IN (26,59,106,107)
-      )
-    )::int AS esquema_completo
+vacinas_componentes AS (
+  SELECT c.cid, c.nascimento,
+    ARRAY_AGG(DISTINCT x.dia ORDER BY x.dia) FILTER (WHERE x.vacina IN (29,39,42,43,46,47,58)) AS dtp,
+    ARRAY_AGG(DISTINCT x.dia ORDER BY x.dia) FILTER (WHERE x.vacina IN (9,42,43)) AS hepb,
+    ARRAY_AGG(DISTINCT x.dia ORDER BY x.dia) FILTER (WHERE x.vacina IN (17,29,39,42,43)) AS hib,
+    ARRAY_AGG(DISTINCT x.dia ORDER BY x.dia) FILTER (WHERE x.vacina IN (22,29,43,58)) AS vip,
+    ARRAY_AGG(DISTINCT x.dia ORDER BY x.dia) FILTER (WHERE x.vacina IN (24,56) AND x.dia >= (c.nascimento + INTERVAL '12 months')::date) AS scr,
+    ARRAY_AGG(DISTINCT x.dia ORDER BY x.dia) FILTER (WHERE x.vacina IN (26,59,106,107)) AS pneumo
   FROM criancas c
+  LEFT JOIN vacinas_eventos x ON x.cid = c.cid
+  GROUP BY c.cid, c.nascimento
+),
+vacinas AS (
+  SELECT cid,
+    (
+      COALESCE(array_length(dtp,1),0) >= 3
+      AND dtp[2] >= dtp[1] + 30 AND dtp[3] >= dtp[2] + 30
+      AND COALESCE(array_length(hepb,1),0) >= 3
+      AND hepb[2] >= hepb[1] + 30 AND hepb[3] >= hepb[2] + 30
+      AND COALESCE(array_length(hib,1),0) >= 3
+      AND hib[2] >= hib[1] + 30 AND hib[3] >= hib[2] + 30
+      AND COALESCE(array_length(vip,1),0) >= 3
+      AND vip[2] >= vip[1] + 30 AND vip[3] >= vip[2] + 30
+      AND COALESCE(array_length(scr,1),0) >= 2
+      AND COALESCE(array_length(pneumo,1),0) >= 2
+      AND pneumo[2] >= pneumo[1] + 30
+    )::int AS esquema_completo
+  FROM vacinas_componentes
 ),
 avaliacao AS (
   SELECT c.*,
