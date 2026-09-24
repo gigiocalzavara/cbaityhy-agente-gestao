@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { appPath } from "@/lib/base-path";
 import { getOfficialIndicators, type IndicatorGroup, type OfficialIndicator } from "@/lib/official-indicators";
 import { ExportButtons } from "./export-buttons";
@@ -336,6 +336,7 @@ function ActiveSearch({ municipalityName }: { municipalityName: string }) {
   const [name, setName] = useState("");
   const [teams, setTeams] = useState<Record<string, unknown>[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const resultRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -364,7 +365,7 @@ function ActiveSearch({ municipalityName }: { municipalityName: string }) {
 
   async function run(id: string, parameters: Record<string, string | null>) {
     setLoading(id); setError(""); setResult(null);
-    try { setResult(await requestTool(id, parameters)); }
+    try { const data = await requestTool(id, parameters); setResult(data); requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }
     catch (err) { setError(err instanceof Error ? err.message : "Falha na busca ativa."); }
     finally { setLoading(""); }
   }
@@ -393,9 +394,9 @@ function ActiveSearch({ municipalityName }: { municipalityName: string }) {
       <article className="action-card duplicate-card"><span className="action-icon">2×</span><div><strong>Possíveis cadastros duplicados</strong><p>Pesquisa nome, CPF, CNS, nascimento e mãe; inclui cadastros inativos e recomenda o registro principal.</p><label>Nome do cidadão<input value={name} onChange={(event) => setName(event.target.value.slice(0, 100))} placeholder="Digite ao menos 3 caracteres" /></label></div><button disabled={Boolean(loading) || name.trim().length < 3} onClick={() => void run("tool_busca_duplicidades_cadastrais", { nome: name })}>{loading === "tool_busca_duplicidades_cadastrais" ? "Analisando…" : "Pesquisar duplicidades"}</button></article>
     </div>
     {error && <div className="module-alert">{error}</div>}
-    {result && <><ResultTable result={result} municipalityName={municipalityName} />{result.toolId === "tool_busca_ativa_c3" && <section className="practice-panel active-search-c3-legend"><header><div><span>C3</span><strong>Legenda das práticas</strong></div></header><div className="practice-grid">{[
+    {result && <div ref={resultRef} className="active-search-result-anchor"><ResultTable result={result} municipalityName={municipalityName} />{result.toolId === "tool_busca_ativa_c3" && <section className="practice-panel active-search-c3-legend"><header><div><span>C3</span><strong>Legenda das práticas</strong></div></header><div className="practice-grid">{[
       ["A","1ª consulta até a 12ª semana"],["B","7 consultas na gestação"],["C","7 aferições de pressão arterial"],["D","7 registros de peso e altura"],["E","3 visitas domiciliares após a 1ª consulta"],["F","dTpa a partir da 20ª semana"],["G","Sífilis, HIV e hepatites B/C no 1º trimestre"],["H","Sífilis e HIV no 3º trimestre"],["I","Consulta no puerpério"],["J","Visita domiciliar no puerpério"],["K","Saúde bucal na gestação"]
-    ].map(([code,label]) => <article key={code}><span>{code}</span><p>{label}</p></article>)}</div></section>}</>}
+    ].map(([code,label]) => <article key={code}><span>{code}</span><p>{label}</p></article>)}</div></section>}</div>}
   </div>;
 }
 
