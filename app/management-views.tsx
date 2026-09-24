@@ -340,7 +340,7 @@ function ActiveSearch({ municipalityName }: { municipalityName: string }) {
   useEffect(() => {
     let active = true;
     setIne(""); setResult(null); setCounts({});
-    void requestTool("tool_listar_esf", {}, "bypass").then((data) => { if (active) setTeams(data.rows); }).catch(() => undefined);
+    void requestTool("tool_listar_esf").then((data) => { if (active) setTeams(data.rows); }).catch(() => undefined);
     return () => { active = false; };
   }, [municipalityName]);
 
