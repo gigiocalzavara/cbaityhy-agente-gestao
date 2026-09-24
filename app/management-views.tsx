@@ -140,11 +140,11 @@ function IndicatorAggregateView({ group, groupTitle, changeGroup, indicatorTools
   </div>;
 }
 
-async function requestTool(toolId: string, parameters: Record<string, string | null> = {}) {
+async function requestTool(toolId: string, parameters: Record<string, string | null> = {}, cacheMode?: "refresh" | "bypass") {
   const response = await fetch(appPath(`/api/tools/${toolId}`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ parameters }),
+    body: JSON.stringify({ parameters, ...(cacheMode ? { cacheMode } : {}) }),
   });
   const data = await response.json();
   if (response.status === 401) { window.location.href = appPath("/login"); throw new Error("Sessão expirada."); }
@@ -276,7 +276,11 @@ function Indicators({ municipalityName }: { municipalityName: string }) {
     if (results[item.id]) return;
     setLoading(item.id);
     try {
-      const loaded = await requestTool(item.toolId, item.toolId === "tool_indicador_idoso" || item.toolId === "tool_censo_gestantes" ? { ine: null } : {});
+      const loaded = await requestTool(
+        item.toolId,
+        item.toolId === "tool_indicador_idoso" || item.toolId === "tool_censo_gestantes" ? { ine: null } : {},
+        item.id === "C2" ? "refresh" : undefined,
+      );
       setResults((current) => ({ ...current, [item.id]: loaded }));
     }
     catch (err) { setError(err instanceof Error ? err.message : "Falha ao consultar indicador."); }
