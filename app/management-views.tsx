@@ -301,8 +301,12 @@ function Indicators({ municipalityName }: { municipalityName: string }) {
     const available = getOfficialIndicators(group).filter((item) => item.toolId);
     if (!available.length) return () => { active = false; };
     void Promise.allSettled(available.map(async (item) => {
-      if (results[item.id] || !item.toolId) return;
-      const loaded = await requestTool(item.toolId, item.toolId === "tool_indicador_idoso" || item.toolId === "tool_censo_gestantes" ? { ine: null } : {});
+      if ((results[item.id] && item.id !== "C2") || !item.toolId) return;
+      const loaded = await requestTool(
+        item.toolId,
+        item.toolId === "tool_indicador_idoso" || item.toolId === "tool_censo_gestantes" ? { ine: null } : {},
+        item.id === "C2" ? "refresh" : undefined,
+      );
       if (active) setResults((current) => ({ ...current, [item.id]: loaded }));
     }));
     return () => { active = false; };
