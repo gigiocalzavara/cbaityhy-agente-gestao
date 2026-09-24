@@ -273,7 +273,7 @@ function Indicators({ municipalityName }: { municipalityName: string }) {
   async function run(item: OfficialIndicator) {
     setSelected(item.id); setError("");
     if (!item.toolId) { setError(`${item.id} está metodologicamente definido e aguarda o mapeamento das estruturas deste PEC: ${item.requiredDomains.join(", ")}.`); return; }
-    if (results[item.id]) return;
+    if (results[item.id] && item.id !== "C2") return;
     setLoading(item.id);
     try {
       const loaded = await requestTool(
