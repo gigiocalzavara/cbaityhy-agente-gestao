@@ -71,9 +71,12 @@ function indicatorSummary(indicator: OfficialIndicator, result?: ToolResult) {
     value: denominator ? `${(numerator / denominator * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%` : "—",
     detail: denominator ? `${pretty(numerator)} primeiras consultas para ${pretty(denominator)} pessoas vinculadas` : "Vínculo populacional da equipe não identificado",
   };
+  const score = denominator ? (indicator.id === "C2" ? numerator / denominator : numerator / denominator * 100) : null;
   return {
-    value: denominator ? `${(numerator / denominator * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "—",
-    detail: `${pretty(numerator)} de ${pretty(denominator)} pessoas`,
+    value: score === null ? "—" : `${score.toLocaleString("pt-BR", { maximumFractionDigits: indicator.id === "C2" ? 2 : 1 })}%`,
+    detail: indicator.id === "C2"
+      ? `${pretty(numerator)} pontos para ${pretty(denominator)} crianças`
+      : `${pretty(numerator)} de ${pretty(denominator)} pessoas`,
   };
 }
 
