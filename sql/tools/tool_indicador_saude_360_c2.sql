@@ -14,6 +14,14 @@ WITH criancas AS (
     AND nasc.dt_registro > CURRENT_DATE - INTERVAL '2 years'
     AND nasc.dt_registro <= CURRENT_DATE
     AND e.nu_ine IS NOT NULL
+    -- C2 é restrito a eSF/eAP. A dimensão não expõe o tipo; validamos o INE
+    -- contra tb_equipe (tp_equipe 70/76) para impedir ESB/eMulti no denominador.
+    AND EXISTS (
+      SELECT 1 FROM public.tb_equipe eq
+      WHERE eq.nu_ine = e.nu_ine
+        AND eq.tp_equipe IN (70,76)
+        AND COALESCE(eq.st_ativo,1) = 1
+    )
   ORDER BY c.co_seq_fat_cidadao_pec
 ),
 consultas AS (
