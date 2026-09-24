@@ -349,12 +349,14 @@ function ActiveSearch({ municipalityName }: { municipalityName: string }) {
     const parameters = { ine: ine || null };
     void Promise.allSettled([
       requestTool("tool_busca_ativa_gestantes_atraso", parameters),
+      requestTool("tool_busca_ativa_c3", parameters),
       requestTool("tool_busca_ativa_idosos", parameters),
     ]).then((items) => {
       if (!active) return;
       setCounts({
         gestantes: items[0].status === "fulfilled" ? items[0].value.rowCount : 0,
-        idosos: items[1].status === "fulfilled" ? items[1].value.rowCount : 0,
+        c3: items[1].status === "fulfilled" ? items[1].value.rowCount : 0,
+        idosos: items[2].status === "fulfilled" ? items[2].value.rowCount : 0,
       });
     });
     return () => { active = false; };
@@ -371,6 +373,7 @@ function ActiveSearch({ municipalityName }: { municipalityName: string }) {
   const scopeLabel = selectedTeam ? `${String(selectedTeam.equipe)} · INE ${ine}` : "Todas as eSF do município";
   const cards = [
     { id:"tool_busca_ativa_gestantes_atraso", icon:"G", title:"Gestantes com cuidado pendente", text:"Gestantes identificadas com acompanhamento pré-natal atrasado.", count:counts.gestantes },
+    { id:"tool_busca_ativa_c3", icon:"C3", title:"Gestação e puerpério · práticas pendentes", text:"Gestantes e puérperas com uma ou mais boas práticas A–K do C3 pendentes.", count:counts.c3 },
     { id:"tool_busca_ativa_idosos", icon:"60+", title:"Idosos sem acompanhamento", text:"Pessoas com 60 anos ou mais sem atendimento registrado nos últimos 12 meses.", count:counts.idosos },
   ];
 
@@ -380,7 +383,7 @@ function ActiveSearch({ municipalityName }: { municipalityName: string }) {
       <label>Equipe / eSF<select value={ine} onChange={(event) => { setIne(event.target.value); setResult(null); }}><option value="">Todas as eSF</option>{teams.map((team) => <option key={String(team.ine)} value={String(team.ine)}>{String(team.equipe)} · {String(team.ine)}</option>)}</select></label>
       <div><span>Escopo atual</span><strong>{scopeLabel}</strong><small>{ine ? "Todas as consultas abaixo respeitam este INE." : "Selecione uma equipe para restringir todas as buscas."}</small></div>
     </section>
-    <section className="active-search-summary"><div><span>Pessoas que precisam de atenção</span><strong>{numberValue(counts.gestantes) + numberValue(counts.idosos)}</strong><small>Somatório das buscas nominais disponíveis no escopo atual</small></div><div><span>Equipe selecionada</span><strong>{ine ? String(selectedTeam?.equipe || "eSF") : "Município"}</strong><small>{ine ? `INE ${ine}` : `${teams.length} equipes disponíveis`}</small></div></section>
+    <section className="active-search-summary"><div><span>Pessoas que precisam de atenção</span><strong>{numberValue(counts.gestantes) + numberValue(counts.c3) + numberValue(counts.idosos)}</strong><small>Somatório das buscas nominais disponíveis no escopo atual</small></div><div><span>Equipe selecionada</span><strong>{ine ? String(selectedTeam?.equipe || "eSF") : "Município"}</strong><small>{ine ? `INE ${ine}` : `${teams.length} equipes disponíveis`}</small></div></section>
     <div className="active-search-grid">
       {cards.map((card) => <article className="action-card" key={card.id}><span className="action-icon">{card.icon}</span><div><strong>{card.title}</strong><p>{card.text}</p><small>{card.count ?? "—"} pessoas no escopo atual</small></div><button disabled={Boolean(loading)} onClick={() => void run(card.id, { ine: ine || null })}>{loading === card.id ? "Consultando…" : "Ver lista"}</button></article>)}
       <article className="action-card"><span className="action-icon">C2</span><div><strong>Crianças com cuidado pendente</strong><p>Camada nominal preparada para receber as boas práticas do C2 validadas no backend.</p></div><button disabled>Em implantação</button></article>
