@@ -168,7 +168,11 @@ export async function executeTool(toolId: string, rawArguments: Record<string, u
     ? sqlTemplate.replaceAll("{{MUNICIPALITY_IBGE}}", municipalityPlaceholder)
     : sqlTemplate;
   const queryValues = meta.municipalityScoped ? [...values, context.municipalityIbgeCode] : values;
-  const timeoutMs = context.activeSearchRefresh ? 600_000 : toolId === "tool_censo_gestantes" ? 60_000 : 30_000;
+  const timeoutMs =
+    context.activeSearchRefresh ? 600_000 :
+    (toolId === "tool_indicador_saude_360_c2" && cacheMode === "refresh") ? 300_000 :
+    toolId === "tool_censo_gestantes" ? 60_000 :
+    30_000;
   const started = Date.now();
   const rows = await executeReadOnlyQuery(context.municipalityId, sql, queryValues, { timeoutMs });
   const max = context.activeSearchRefresh ? 20_000 : meta.nominal ? Number(process.env.DEFAULT_RESULT_LIMIT || 15) : 250;
