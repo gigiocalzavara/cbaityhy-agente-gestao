@@ -62,7 +62,13 @@ eventos_puerperio AS (
     JOIN public.tb_dim_tempo t ON t.co_seq_dim_tempo = pr.co_dim_tempo
     JOIN public.tb_dim_procedimento dp ON dp.co_seq_dim_procedimento = pr.co_dim_procedimento
     WHERE t.dt_registro::date BETWEEN ep.inicio_gestacao AND ep.inicio_gestacao + 336
-      AND regexp_replace(COALESCE(dp.nu_identificador::text,''), '[^0-9]', '', 'g') = '0301010129'
+      AND regexp_replace(COALESCE(
+        to_jsonb(dp)->>'nu_identificador',
+        to_jsonb(dp)->>'co_procedimento',
+        to_jsonb(dp)->>'nu_procedimento',
+        to_jsonb(dp)->>'ds_procedimento',
+        ''
+      ), '[^0-9]', '', 'g') = '0301010129'
   ) x
   GROUP BY pessoa_id
 ),
@@ -161,7 +167,13 @@ consultas_puerperais_mip AS (
   WHERE p.em_puerperio
     AND t.dt_registro::date > p.fim_gestacao
     AND t.dt_registro::date <= p.fim_gestacao + 42
-    AND regexp_replace(COALESCE(dp.nu_identificador::text,''), '[^0-9]', '', 'g') = '0301010129'
+    AND regexp_replace(COALESCE(
+      to_jsonb(dp)->>'nu_identificador',
+      to_jsonb(dp)->>'co_procedimento',
+      to_jsonb(dp)->>'nu_procedimento',
+      to_jsonb(dp)->>'ds_procedimento',
+      ''
+    ), '[^0-9]', '', 'g') = '0301010129'
     AND replace(COALESCE(cbo.nu_cbo,''),'-','') ~ '^(2231|2235|2251|2252|2253)'
   GROUP BY i.pessoa_id
 ),
@@ -237,7 +249,13 @@ exame_eventos AS (
   WHERE t.dt_registro::date BETWEEN p.inicio_gestacao AND p.fim_gestacao
   UNION ALL
   SELECT i.pessoa_id, p.inicio_gestacao, p.fim_gestacao, t.dt_registro::date,
-    regexp_replace(COALESCE(dp.nu_identificador::text,''), '[^0-9]', '', 'g')
+    regexp_replace(COALESCE(
+      to_jsonb(dp)->>'nu_identificador',
+      to_jsonb(dp)->>'co_procedimento',
+      to_jsonb(dp)->>'nu_procedimento',
+      to_jsonb(dp)->>'ds_procedimento',
+      ''
+    ), '[^0-9]', '', 'g')
   FROM public.tb_fat_proced_atend_proced pr
   JOIN identidades i ON i.cid = pr.co_fat_cidadao_pec
   JOIN pessoas p ON p.pessoa_id = i.pessoa_id
