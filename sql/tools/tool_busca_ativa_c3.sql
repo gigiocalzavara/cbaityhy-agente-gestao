@@ -310,7 +310,12 @@ avaliacao AS (
   LEFT JOIN exames x ON x.pessoa_id = p.pessoa_id
   LEFT JOIN saude_bucal sb ON sb.pessoa_id = p.pessoa_id
 )
-SELECT a.pessoa_id AS cidadao_id, a.nu_ine AS ine, a.equipe,
+SELECT
+  CASE WHEN a.pessoa_id LIKE 'CPF:%' THEN
+    substr(replace(a.pessoa_id,'CPF:',''),1,3) || '.***.***-' || substr(replace(a.pessoa_id,'CPF:',''),10,2)
+    ELSE 'CPF não informado' END AS cpf,
+  COALESCE(cid.no_cidadao, 'Nome não localizado') AS gestante,
+  a.nu_ine AS ine, a.equipe,
   a.a AS pratica_a, a.b AS pratica_b, a.c AS pratica_c, a.d AS pratica_d,
   a.e AS pratica_e, a.f AS pratica_f, a.g AS pratica_g, a.h AS pratica_h,
   a.i AS pratica_i, a.j AS pratica_j, a.k AS pratica_k,
@@ -320,7 +325,16 @@ SELECT a.pessoa_id AS cidadao_id, a.nu_ine AS ine, a.equipe,
     CASE WHEN a.i=0 THEN 'I' END, CASE WHEN a.j=0 THEN 'J' END, CASE WHEN a.k=0 THEN 'K' END) AS praticas_pendentes,
   (10*a.a + 9*(a.b+a.c+a.d+a.e+a.f+a.g+a.h+a.i+a.j+a.k))::int AS pontuacao_atual,
   CASE WHEN a.em_puerperio THEN 'Puerpério' ELSE 'Gestação' END AS fase_cuidado
-FROM avaliacao a CROSS JOIN parametros p
+FROM avaliacao a
+LEFT JOIN LATERAL (
+  SELECT c.no_cidadao
+  FROM public.tb_cidadao c
+  WHERE (a.pessoa_id LIKE 'CPF:%' AND regexp_replace(COALESCE(c.nu_cpf,''),'[^0-9]','','g') = replace(a.pessoa_id,'CPF:',''))
+     OR (a.pessoa_id LIKE 'CNS:%' AND regexp_replace(COALESCE(c.nu_cns,''),'[^0-9]','','g') = replace(a.pessoa_id,'CNS:',''))
+  ORDER BY COALESCE(c.st_ativo,1) DESC, c.co_seq_cidadao DESC
+  LIMIT 1
+) cid ON TRUE
+CROSS JOIN parametros p
 WHERE (p.ine_filtro IS NULL OR a.nu_ine=p.ine_filtro)
   AND (a.a+a.b+a.c+a.d+a.e+a.f+a.g+a.h+a.i+a.j+a.k)<11
 ORDER BY pontuacao_atual ASC, a.equipe, a.pessoa_id;
