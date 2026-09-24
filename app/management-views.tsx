@@ -281,13 +281,12 @@ function Indicators({ municipalityName }: { municipalityName: string }) {
   async function run(item: OfficialIndicator) {
     setSelected(item.id); setError("");
     if (!item.toolId) { setError(`${item.id} está metodologicamente definido e aguarda o mapeamento das estruturas deste PEC: ${item.requiredDomains.join(", ")}.`); return; }
-    if (results[item.id] && item.id !== "C2") return;
+    if (results[item.id]) return;
     setLoading(item.id);
     try {
       const loaded = await requestTool(
         item.toolId,
         item.toolId === "tool_indicador_idoso" || item.toolId === "tool_censo_gestantes" ? { ine: null } : {},
-        item.id === "C2" ? "refresh" : undefined,
       );
       setResults((current) => ({ ...current, [item.id]: loaded }));
     }
@@ -309,11 +308,10 @@ function Indicators({ municipalityName }: { municipalityName: string }) {
     const available = getOfficialIndicators(group).filter((item) => item.toolId);
     if (!available.length) return () => { active = false; };
     void Promise.allSettled(available.map(async (item) => {
-      if ((results[item.id] && item.id !== "C2") || !item.toolId) return;
+      if (results[item.id] || !item.toolId) return;
       const loaded = await requestTool(
         item.toolId,
         item.toolId === "tool_indicador_idoso" || item.toolId === "tool_censo_gestantes" ? { ine: null } : {},
-        item.id === "C2" ? "refresh" : undefined,
       );
       if (active) setResults((current) => ({ ...current, [item.id]: loaded }));
     }));
