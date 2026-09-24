@@ -146,7 +146,15 @@ async function requestTool(toolId: string, parameters: Record<string, string | n
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ parameters, ...(cacheMode ? { cacheMode } : {}) }),
   });
-  const data = await response.json();
+  const raw = await response.text();
+  let data: any = {};
+  try { data = raw ? JSON.parse(raw) : {}; }
+  catch {
+    if (response.status === 502 || response.status === 503 || response.status === 504) {
+      throw new Error("A consulta ao PEC excedeu o tempo de resposta do servidor. Tente novamente em instantes.");
+    }
+    throw new Error(`Resposta inválida do servidor (HTTP ${response.status}).`);
+  }
   if (response.status === 401) { window.location.href = appPath("/login"); throw new Error("Sessão expirada."); }
   if (!response.ok) throw new Error(data.message || "Não foi possível consultar o PEC.");
   return data as ToolResult;
