@@ -126,6 +126,7 @@ function describeTool(id: string) {
     tool_indicador_saude_bucal_b1: "Prévia mensal B1 filtrada pelo município ativo: primeiras consultas odontológicas programáticas divididas pela população ativa da eSF/eAP de referência, por eSB/INE.",
     tool_indicador_saude_bucal_b2: "Prévia mensal B2 filtrada pelo IBGE do município ativo: tratamentos odontológicos concluídos em relação às primeiras consultas programáticas, por eSB/INE.",
     tool_indicador_saude_360_c1: "Prévia mensal C1 filtrada pelo município ativo: atendimentos programados em relação às demandas programadas e espontâneas por INE.",
+    tool_indicador_saude_360_c3: "Prévia mensal C3: pontuação das onze boas práticas de cuidado na gestação e puerpério por equipe/INE, conforme Nota Metodológica C3/SAPS/MS.",
     tool_indicador_saude_bucal_b3: "Prévia mensal B3: taxa de exodontias permanentes no conjunto oficial de procedimentos elegíveis por eSB/INE.",
     tool_indicador_saude_bucal_b5: "Prévia mensal B5: proporção de procedimentos odontológicos preventivos por eSB/INE.",
     tool_indicador_saude_bucal_b6: "Prévia mensal B6: proporção de TRA/ART entre procedimentos restauradores por eSB/INE.",
@@ -170,7 +171,7 @@ export async function executeTool(toolId: string, rawArguments: Record<string, u
   const queryValues = meta.municipalityScoped ? [...values, context.municipalityIbgeCode] : values;
   const timeoutMs =
     context.activeSearchRefresh ? 600_000 :
-    (toolId === "tool_indicador_saude_360_c2" && cacheMode === "refresh") ? 300_000 :
+    (["tool_indicador_saude_360_c2", "tool_indicador_saude_360_c3"].includes(toolId) && cacheMode === "refresh") ? 300_000 :
     toolId === "tool_censo_gestantes" ? 60_000 :
     30_000;
   const started = Date.now();

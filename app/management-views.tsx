@@ -44,7 +44,7 @@ const indicatorMetricColumns: Record<string, { numerator: string; denominator: s
   C1: { numerator: "atendimentos_programados", denominator: "total_atendimentos" },
   // C2 integral não deve usar o recorte vacinal como resultado oficial.
   C2: { numerator: "numerador_pontos", denominator: "denominador_criancas" },
-  C3: { numerator: "total_gestantes_ativas", denominator: "total_gestantes_ativas" },
+  C3: { numerator: "numerador_pontos", denominator: "denominador_gestantes_puerperas" },
   C4: { numerator: "diabeticos_com_hba1c_6m", denominator: "total_diabeticos_ativos" },
   C5: { numerator: "hipertensos_com_pa_6m", denominator: "total_hipertensos_ativos" },
   C6: { numerator: "idosos_com_avaliacao_anual", denominator: "total_idosos_cadastrados" },
@@ -66,16 +66,15 @@ function indicatorSummary(indicator: OfficialIndicator, result?: ToolResult) {
   }
   const denominator = rows.reduce((total, row) => total + numberValue(row[metric.denominator]), 0);
   const numerator = rows.reduce((total, row) => total + numberValue(row[metric.numerator]), 0);
-  if (indicator.id === "C3") return { value: pretty(numerator), detail: "gestantes identificadas" };
   if (indicator.id === "B1") return {
     value: denominator ? `${(numerator / denominator * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%` : "—",
     detail: denominator ? `${pretty(numerator)} primeiras consultas para ${pretty(denominator)} pessoas vinculadas` : "Vínculo populacional da equipe não identificado",
   };
-  const score = denominator ? (indicator.id === "C2" ? numerator / denominator : numerator / denominator * 100) : null;
+  const score = denominator ? (["C2", "C3"].includes(indicator.id) ? numerator / denominator : numerator / denominator * 100) : null;
   return {
-    value: score === null ? "—" : `${score.toLocaleString("pt-BR", { maximumFractionDigits: indicator.id === "C2" ? 2 : 1 })}%`,
-    detail: indicator.id === "C2"
-      ? `${pretty(numerator)} pontos para ${pretty(denominator)} crianças`
+    value: score === null ? "—" : `${score.toLocaleString("pt-BR", { maximumFractionDigits: ["C2", "C3"].includes(indicator.id) ? 2 : 1 })}%`,
+    detail: ["C2", "C3"].includes(indicator.id)
+      ? `${pretty(numerator)} pontos para ${pretty(denominator)} ${indicator.id === "C2" ? "crianças" : "gestantes/puérperas"}`
       : `${pretty(numerator)} de ${pretty(denominator)} pessoas`,
   };
 }
@@ -109,13 +108,16 @@ function IndicatorAggregateView({ group, groupTitle, changeGroup, indicatorTools
   const denominator = metric ? rows.reduce((total, row) => total + numberValue(row[metric.denominator]), 0) : 0;
   const isC2Partial = false;
   const isC2Full = selectedIndicator.id === "C2";
-  const municipalScore = metric && selectedIndicator.id !== "C3" && denominator ? (isC2Full ? numerator / denominator : numerator / denominator * 100) : null;
+  const isC3Full = selectedIndicator.id === "C3";
+  const isPointBased = isC2Full || isC3Full;
+  const municipalScore = metric && denominator ? (isPointBased ? numerator / denominator : numerator / denominator * 100) : null;
   const c2VaccinationScore = isC2Partial && denominator ? numerator / denominator * 100 : null;
   const exportRows = filteredRows.map((row) => {
     const rowNumerator = metric ? numberValue(row[metric.numerator]) : 0;
     const rowDenominator = metric ? numberValue(row[metric.denominator]) : 0;
-    const score = metric && selectedIndicator.id !== "C3" && rowDenominator ? (isC2Full ? rowNumerator / rowDenominator : rowNumerator / rowDenominator * 100) : null;
-    return { equipe: row.equipe || "SEM EQUIPE", ine: row.nu_ine || row.ine || "-", ...(isC2Full ? { A: numberValue(row.pratica_a), B: numberValue(row.pratica_b), C: numberValue(row.pratica_c), D: numberValue(row.pratica_d), E: numberValue(row.pratica_e) } : {}), numerador: rowNumerator, denominador: rowDenominator, resultado: score === null ? "Informativo" : `${score.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`, classificacao: scoreBand(score, selectedIndicator.id).label };
+    const score = metric && rowDenominator ? (isPointBased ? rowNumerator / rowDenominator : rowNumerator / rowDenominator * 100) : null;
+    const practices = isC2Full ? { A: numberValue(row.pratica_a), B: numberValue(row.pratica_b), C: numberValue(row.pratica_c), D: numberValue(row.pratica_d), E: numberValue(row.pratica_e) } : isC3Full ? { A: numberValue(row.pratica_a), B: numberValue(row.pratica_b), C: numberValue(row.pratica_c), D: numberValue(row.pratica_d), E: numberValue(row.pratica_e), F: numberValue(row.pratica_f), G: numberValue(row.pratica_g), H: numberValue(row.pratica_h), I: numberValue(row.pratica_i), J: numberValue(row.pratica_j), K: numberValue(row.pratica_k) } : {};
+    return { equipe: row.equipe || "SEM EQUIPE", ine: row.nu_ine || row.ine || "-", ...practices, numerador: rowNumerator, denominador: rowDenominator, resultado: score === null ? "Informativo" : `${score.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`, classificacao: scoreBand(score, selectedIndicator.id).label };
   });
 
   return <div className="module-page indicator-page-redesign">
@@ -129,12 +131,12 @@ function IndicatorAggregateView({ group, groupTitle, changeGroup, indicatorTools
       <section className="indicator-summary-grid">
         <article className="primary"><span>{isC2Partial ? "C2 municipal" : "Resultado municipal"}</span><strong>{isC2Partial ? "Em conciliação" : municipalScore === null ? "Informativo" : `${municipalScore.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`}</strong><small>{isC2Partial ? "Não confundir vacinação isolada com o C2 completo" : scoreBand(municipalScore, selectedIndicator.id).label}</small></article>
         <article><span>Equipes avaliadas</span><strong>{rows.length}</strong><small>ESFs com resultado disponível</small></article>
-        <article><span>{isC2Full ? "NM · Pontos obtidos" : isC2Partial ? "E · Vacinação" : selectedIndicator.id === "C3" ? "Pessoas identificadas" : "Atendem ao critério"}</span><strong>{isC2Partial && c2VaccinationScore !== null ? `${c2VaccinationScore.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%` : pretty(numerator)}</strong><small>{isC2Partial ? `${pretty(numerator)} crianças com esquema identificado` : "Numerador municipal"}</small></article>
-        <article><span>{isC2Full ? "DN · Crianças consideradas" : isC2Partial ? "Crianças no recorte local" : "População considerada"}</span><strong>{pretty(denominator)}</strong><small>{isC2Partial ? "Denominador do recorte vacinal; não é o denominador oficial integral do C2" : "Denominador municipal"}</small></article>
+        <article><span>{isPointBased ? "NM · Pontos obtidos" : isC2Partial ? "E · Vacinação" : "Atendem ao critério"}</span><strong>{isC2Partial && c2VaccinationScore !== null ? `${c2VaccinationScore.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%` : pretty(numerator)}</strong><small>{isC2Partial ? `${pretty(numerator)} crianças com esquema identificado` : "Numerador municipal"}</small></article>
+        <article><span>{isC2Full ? "DN · Crianças consideradas" : isC3Full ? "DN · Gestantes e puérperas" : isC2Partial ? "Crianças no recorte local" : "População considerada"}</span><strong>{pretty(denominator)}</strong><small>{isC2Partial ? "Denominador do recorte vacinal; não é o denominador oficial integral do C2" : "Denominador municipal"}</small></article>
       </section>
       <section className="team-results-card">
         <header><div><strong>{isC2Partial ? "Recorte E · Vacinação por ESF" : "Resumo das ESFs"}</strong><span>{isC2Partial ? "O C2 completo será apresentado por A, B, C, D e E após conciliação metodológica" : "Resultados agregados por equipe"}</span></div><div className="team-results-actions"><label>Buscar equipe ou INE<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ex.: ESF 01" /></label><ExportButtons data={{ title: `${selectedIndicator.id} - ${selectedIndicator.title} por equipe`, municipalityName, columns: Object.keys(exportRows[0] || {}), rows: exportRows }} /></div></header>
-        <div className="team-results-table"><table><thead><tr><th>Equipe</th>{isC2Full && <><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th></>}<th>{isC2Full ? "NM" : isC2Partial ? "Com vacinação identificada" : "Numerador"}</th><th>{isC2Full ? "DN" : isC2Partial ? "Crianças no recorte" : "Denominador"}</th><th>{isC2Partial ? "Cobertura E" : "Resultado"}</th><th>{isC2Partial ? "Leitura" : "Classificação"}</th></tr></thead><tbody>{exportRows.map((row) => { const rawScore = typeof row.resultado === "string" && row.resultado.endsWith("%") ? Number(row.resultado.replace("%", "").replace(".", "").replace(",", ".")) : null; const band = scoreBand(rawScore, selectedIndicator.id); return <tr key={`${String(row.ine)}-${String(row.equipe)}`}><td><strong>{String(row.equipe)}</strong><small>{String(row.ine)}</small></td>{isC2Full && <><td>{pretty(row.A)}</td><td>{pretty(row.B)}</td><td>{pretty(row.C)}</td><td>{pretty(row.D)}</td><td>{pretty(row.E)}</td></>}<td>{pretty(row.numerador)}</td><td>{pretty(row.denominador)}</td><td><b className={`score-value ${isC2Partial ? "neutral" : band.tone}`}>{isC2Partial && metric ? `${(numberValue(row.numerador) / Math.max(1, numberValue(row.denominador)) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%` : String(row.resultado)}</b></td><td>{isC2Partial ? <span className="score-class neutral">Componente E</span> : <span className={`score-class ${band.tone}`}>{String(row.classificacao)}</span>}</td></tr>; })}</tbody></table></div>
+        <div className="team-results-table"><table><thead><tr><th>Equipe</th>{isC2Full && <><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th></>}{isC3Full && <><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th><th>K</th></>}<th>{isPointBased ? "NM" : isC2Partial ? "Com vacinação identificada" : "Numerador"}</th><th>{isPointBased ? "DN" : isC2Partial ? "Crianças no recorte" : "Denominador"}</th><th>{isC2Partial ? "Cobertura E" : "Resultado"}</th><th>{isC2Partial ? "Leitura" : "Classificação"}</th></tr></thead><tbody>{exportRows.map((row) => { const rawScore = typeof row.resultado === "string" && row.resultado.endsWith("%") ? Number(row.resultado.replace("%", "").replace(".", "").replace(",", ".")) : null; const band = scoreBand(rawScore, selectedIndicator.id); return <tr key={`${String(row.ine)}-${String(row.equipe)}`}><td><strong>{String(row.equipe)}</strong><small>{String(row.ine)}</small></td>{isC2Full && <><td>{pretty(row.A)}</td><td>{pretty(row.B)}</td><td>{pretty(row.C)}</td><td>{pretty(row.D)}</td><td>{pretty(row.E)}</td></>}{isC3Full && <><td>{pretty(row.A)}</td><td>{pretty(row.B)}</td><td>{pretty(row.C)}</td><td>{pretty(row.D)}</td><td>{pretty(row.E)}</td><td>{pretty(row.F)}</td><td>{pretty(row.G)}</td><td>{pretty(row.H)}</td><td>{pretty(row.I)}</td><td>{pretty(row.J)}</td><td>{pretty(row.K)}</td></>}<td>{pretty(row.numerador)}</td><td>{pretty(row.denominador)}</td><td><b className={`score-value ${isC2Partial ? "neutral" : band.tone}`}>{isC2Partial && metric ? `${(numberValue(row.numerador) / Math.max(1, numberValue(row.denominador)) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%` : String(row.resultado)}</b></td><td>{isC2Partial ? <span className="score-class neutral">Componente E</span> : <span className={`score-class ${band.tone}`}>{String(row.classificacao)}</span>}</td></tr>; })}</tbody></table></div>
         {!exportRows.length && <div className="module-empty compact"><strong>Nenhuma equipe encontrada</strong><span>Revise o nome ou o INE pesquisado.</span></div>}
         <footer className="score-legend"><strong>{isC2Partial ? "Leitura do C2" : "Faixas de leitura"}</strong>{isC2Partial ? <div><span>O C2 oficial combina cinco boas práticas A–E. Esta tabela mostra somente o componente E disponível no PEC local.</span></div> : selectedIndicator.id === "C1" ? <div><span className="attention">Regular <small>≤10 ou &gt;70</small></span><span className="enough">Suficiente <small>&gt;10 a 30</small></span><span className="good">Bom <small>&gt;30 a 50</small></span><span className="great">Ótimo <small>&gt;50 a 70</small></span></div> : <div><span className="attention">Regular <small>0 a 25</small></span><span className="enough">Suficiente <small>&gt;25 a 50</small></span><span className="good">Bom <small>&gt;50 a 75</small></span><span className="great">Ótimo <small>&gt;75 a 100</small></span></div>}</footer>
       </section>
