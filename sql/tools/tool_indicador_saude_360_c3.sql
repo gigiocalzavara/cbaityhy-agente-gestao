@@ -1,7 +1,7 @@
 -- C3 · Cuidado na gestação e puerpério
 -- Nota Metodológica C3/SAPS/MS, versão assinada em 22/06/2026.
 -- Prévia local calculada exclusivamente com registros disponíveis no PEC.
-WITH gestacoes_identificadas AS MATERIALIZED (
+WITH gestacoes_identificadas AS (
   SELECT DISTINCT ON (a.co_fat_cidadao_pec)
     a.co_fat_cidadao_pec AS cid,
     COALESCE(dum.dt_registro::date,
@@ -29,7 +29,7 @@ WITH gestacoes_identificadas AS MATERIALIZED (
     ) DESC,
     a.dt_inicial_atendimento DESC
 ),
-puerperios_registrados AS MATERIALIZED (
+puerperios_registrados AS (
   SELECT a.co_fat_cidadao_pec AS cid, MIN(a.dt_inicial_atendimento::date) AS referencia_puerperio
   FROM public.tb_fat_atendimento_individual a
   JOIN gestacoes_identificadas g ON g.cid = a.co_fat_cidadao_pec
@@ -40,7 +40,7 @@ puerperios_registrados AS MATERIALIZED (
     )
   GROUP BY a.co_fat_cidadao_pec
 ),
-vinculo_atual AS MATERIALIZED (
+vinculo_atual AS (
   SELECT DISTINCT ON (v.co_cidadao)
     v.co_cidadao, NULLIF(v.nu_ine, '-') AS nu_ine
   FROM public.tb_cidadao_vinculacao_equipe v
@@ -50,7 +50,7 @@ vinculo_atual AS MATERIALIZED (
   ORDER BY v.co_cidadao, v.dt_atualizacao_cadastro DESC NULLS LAST,
     v.co_seq_cidadao_vinculacao_eqp DESC
 ),
-pessoas AS MATERIALIZED (
+pessoas AS (
   SELECT g.cid, g.inicio_gestacao,
     CASE
       -- O fato local não expõe a data do desfecho. O primeiro registro
@@ -76,7 +76,7 @@ pessoas AS MATERIALIZED (
       OR CURRENT_DATE BETWEEN g.inicio_gestacao + 295 AND g.inicio_gestacao + 336
     )
 ),
-consultas AS MATERIALIZED (
+consultas AS (
   SELECT a.co_fat_cidadao_pec AS cid,
     MIN(t.dt_registro::date) FILTER (
       WHERE t.dt_registro::date <= p.fim_gestacao
@@ -112,7 +112,7 @@ consultas AS MATERIALIZED (
     )
   GROUP BY a.co_fat_cidadao_pec
 ),
-medicoes AS MATERIALIZED (
+medicoes AS (
   SELECT cid,
     COUNT(DISTINCT dia) FILTER (WHERE tem_pa) AS afericoes_pa,
     COUNT(DISTINCT dia) FILTER (WHERE tem_peso_altura) AS antropometrias
@@ -135,7 +135,7 @@ medicoes AS MATERIALIZED (
   ) x
   GROUP BY cid
 ),
-visitas AS MATERIALIZED (
+visitas AS (
   SELECT v.co_fat_cidadao_pec AS cid,
     COUNT(DISTINCT t.dt_registro::date) FILTER (
       WHERE t.dt_registro::date > q.primeira_consulta AND t.dt_registro::date <= p.fim_gestacao
@@ -153,7 +153,7 @@ visitas AS MATERIALIZED (
     AND REPLACE(COALESCE(cbo.nu_cbo,''),'-','') ~ '^(3222|515105)'
   GROUP BY v.co_fat_cidadao_pec
 ),
-dtpa AS MATERIALIZED (
+dtpa AS (
   SELECT v.co_fat_cidadao_pec AS cid, COUNT(*) AS registros
   FROM public.tb_fat_vacinacao v
   JOIN pessoas p ON p.cid = v.co_fat_cidadao_pec
@@ -164,7 +164,7 @@ dtpa AS MATERIALIZED (
     AND t.dt_registro::date BETWEEN p.inicio_gestacao + 140 AND p.fim_gestacao
   GROUP BY v.co_fat_cidadao_pec
 ),
-exames AS MATERIALIZED (
+exames AS (
   SELECT cid,
     BOOL_OR(dia <= inicio_gestacao + 97 AND grupo = 'HIV') AS hiv_t1,
     BOOL_OR(dia <= inicio_gestacao + 97 AND grupo = 'SIFILIS') AS sifilis_t1,
@@ -193,7 +193,7 @@ exames AS MATERIALIZED (
   WHERE grupo IS NOT NULL
   GROUP BY cid
 ),
-saude_bucal AS MATERIALIZED (
+saude_bucal AS (
   SELECT o.co_fat_cidadao_pec AS cid, COUNT(*) AS atividades
   FROM public.tb_fat_atendimento_odonto o
   JOIN pessoas p ON p.cid = o.co_fat_cidadao_pec
