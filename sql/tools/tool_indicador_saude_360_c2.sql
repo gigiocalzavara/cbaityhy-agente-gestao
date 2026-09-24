@@ -14,20 +14,9 @@ WITH criancas AS (
     AND nasc.dt_registro > CURRENT_DATE - INTERVAL '2 years'
     AND nasc.dt_registro <= CURRENT_DATE
     AND e.nu_ine IS NOT NULL
-    -- C2 é restrito a eSF/eAP. A dimensão não expõe o tipo; validamos o INE
-    -- contra tb_equipe (tp_equipe 70/76) para impedir ESB/eMulti no denominador.
-    AND EXISTS (
-      SELECT 1 FROM public.tb_equipe eq
-      WHERE regexp_replace(COALESCE(eq.nu_ine::text,''), '[^0-9]', '', 'g') =
-            regexp_replace(COALESCE(e.nu_ine::text,''), '[^0-9]', '', 'g')
-        -- PEC local stores team type as an internal code in some versions;
-        -- accept canonical 70/76 when present, otherwise identify eSF/eAP by name.
-        AND (
-          eq.tp_equipe IN (70,76)
-          OR UPPER(COALESCE(eq.no_equipe,'')) ~ '(^|[^A-Z])(ESF|EAP)([^A-Z]|$)'
-        )
-        AND COALESCE(eq.st_ativo,1) = 1
-    )
+    -- A elegibilidade eSF/eAP será aplicada somente após mapear com segurança
+    -- a codificação local de tipo de equipe. Não excluir crianças por hipótese
+    -- sobre tp_equipe: o INE continua explícito no resultado para auditoria.
   ORDER BY c.co_seq_fat_cidadao_pec
 ),
 consultas AS (
