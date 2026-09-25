@@ -202,7 +202,6 @@ export async function executeTool(toolId: string, rawArguments: Record<string, u
       toolId, kind: "aggregate", nominal: false, chart: true, parameters: clean,
       rowCount: rows.length, rows,
       cache: c3.cache,
-      derivedFrom: ["tool_indicador_saude_360_c3", "tool_busca_ativa_c3"],
     };
   }
 
